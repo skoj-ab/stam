@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+node_modules
+dist
+coverage
+data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store

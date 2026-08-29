@@ -1,0 +1,14 @@
+/*
+ * The application stylesheet. Imported once, from `src/web/main.tsx`.
+ *
+ * No other file in the project may import CSS — `bun run lint` enforces it.
+ */
+
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/source-serif-4";
+
+@import "tailwindcss";
+
+@import "./tokens.css";
+@import "./theme.css";
+@import "./base.css";

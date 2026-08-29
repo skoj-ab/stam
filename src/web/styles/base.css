@@ -1,0 +1,90 @@
+/*
+ * Element-level defaults. Everything here is a decision the whole application
+ * inherits; anything narrower belongs in a component under `src/web/ui`.
+ */
+
+@layer base {
+  html {
+    /* 14px UI base: this application is dense tables and long forms, not prose. */
+    font-size: 87.5%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    /* Contextual alternates off, slashed zero on: share numbers must be exact. */
+    font-feature-settings:
+      "calt" 0,
+      "zero" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Headings are the serif voice of the register. Sizes come from the
+   * `Heading` component, not from element defaults.
+   */
+  :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /*
+   * Every number in a share register is compared column-to-column, so figures
+   * are tabular by default rather than opt-in.
+   */
+  :is(table, input, output, time, [data-numeric]) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Native controls follow the theme instead of the user agent's palette. */
+  :is(input, textarea, select, button) {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::placeholder {
+    color: var(--color-ink-subtle);
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-subtle);
+    color: var(--color-ink);
+  }
+
+  /* Keyboard focus is uniform and never removed; pointer focus stays quiet. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  hr {
+    border-color: var(--color-rule);
+  }
+
+  /* Base UI locks scroll by compensating with padding; keep the page steady. */
+  body[data-scroll-locked] {
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

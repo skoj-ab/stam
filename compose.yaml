@@ -1,0 +1,30 @@
+services:
+  stam:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      DATABASE_PATH: /data/stam.sqlite
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:?WEBAUTHN_RP_ID is required}
+    ports:
+      - "3100:3100"
+    volumes:
+      - stam-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - 'const response = await fetch("http://127.0.0.1:3100/api/health"); process.exit(response.ok ? 0 : 1)'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 30s
+
+volumes:
+  stam-data:
