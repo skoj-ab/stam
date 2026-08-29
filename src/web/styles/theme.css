@@ -1,0 +1,135 @@
+/*
+ * Maps the design tokens in `tokens.css` onto Tailwind's theme.
+ *
+ * `@theme inline` is deliberate: utilities emit `var(--ink)` rather than a
+ * copied literal, so the light/dark overrides in `tokens.css` take effect
+ * without a single `dark:` variant in component code.
+ *
+ * The palette is CLOSED. `--color-*: initial` drops Tailwind's default colours,
+ * so `bg-blue-500`, `text-gray-700` and friends do not exist in this codebase.
+ * If a colour is missing, add a token in `tokens.css` and map it here — never
+ * reach for a literal at the call site.
+ */
+
+@theme inline {
+  /* ---- Colours: reset Tailwind's defaults, then declare ours only ------ */
+  --color-*: initial;
+
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverted: var(--ink-inverted);
+
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-rule-subtle: var(--rule-subtle);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-rule: var(--accent-rule);
+
+  --color-positive: var(--positive);
+  --color-positive-ink: var(--positive-ink);
+  --color-positive-subtle: var(--positive-subtle);
+  --color-positive-rule: var(--positive-rule);
+
+  --color-caution: var(--caution);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-subtle: var(--caution-subtle);
+  --color-caution-rule: var(--caution-rule);
+
+  --color-critical: var(--critical);
+  --color-critical-ink: var(--critical-ink);
+  --color-critical-subtle: var(--critical-subtle);
+  --color-critical-rule: var(--critical-rule);
+
+  --color-focus: var(--focus);
+
+  /* ---- Typography ------------------------------------------------------ */
+  --font-*: initial;
+  --font-serif: "Source Serif 4 Variable", "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* One addition to Tailwind's type scale, for table micro-labels. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.04em;
+
+  /* ---- Radii: a legal record is crisp, not pill-shaped ----------------- */
+  --radius-*: initial;
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-full: 9999px;
+
+  /* ---- Elevation: reserved for content that floats over the page ------- */
+  --shadow-*: initial;
+  --shadow-raised: var(--shadow-raised-value);
+  --shadow-popover: var(--shadow-popover-value);
+  --shadow-dialog: var(--shadow-dialog-value);
+
+  /* ---- Layout constants ------------------------------------------------ */
+  --container-prose: 68ch; /* max-w-prose: readable running text */
+  --container-form: 34rem; /* max-w-form: a single-column form column */
+  --container-page: 84rem; /* max-w-page: the application content width */
+
+  /* ---- Motion: brisk and unobtrusive; records should not bounce -------- */
+  --ease-out-quiet: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 120ms var(--ease-out-quiet);
+  --animate-pop-in: pop-in 120ms var(--ease-out-quiet);
+}
+
+/*
+ * `dark:` responds to BOTH the explicit choice and the system preference.
+ * You should rarely need it — the tokens already swap themselves.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
+/* The one focus treatment in the system. Every interactive element uses it. */
+@utility focus-ring {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Inset variant, for elements flush against a container edge (table rows). */
+@utility focus-ring-inset {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}

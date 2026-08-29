@@ -1,0 +1,74 @@
+{
+  "name": "stam",
+  "version": "0.1.0",
+  "description": "A self-hosted share register for Swedish private limited companies.",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/skoj-ab/stam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skoj-ab/stam.git"
+  },
+  "bugs": {
+    "url": "https://github.com/skoj-ab/stam/issues"
+  },
+  "type": "module",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "scripts": {
+    "dev": "bun run --parallel dev:server dev:web",
+    "dev:server": "bun --hot src/server/index.ts",
+    "dev:web": "vite",
+    "build": "bun run build:web && bun run build:server && bun run licenses:generate",
+    "build:web": "vite build",
+    "build:server": "bun scripts/build-server.ts",
+    "licenses:generate": "bun scripts/generate-third-party-licenses.ts",
+    "start": "bun dist/server/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check . && bun scripts/check-design-system.ts",
+    "audit": "bun audit --ignore GHSA-67mh-4wv8-2f99",
+    "format": "biome format --write .",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun scripts/migrate.ts",
+    "auth:bootstrap": "bun scripts/bootstrap-admin.ts",
+    "db:backup": "bun scripts/backup.ts",
+    "db:restore": "bun scripts/restore.ts",
+    "lint:design": "bun scripts/check-design-system.ts"
+  },
+  "dependencies": {
+    "@base-ui-components/react": "1.0.0-rc.0",
+    "@better-auth/api-key": "1.7.2",
+    "@better-auth/drizzle-adapter": "1.7.2",
+    "@better-auth/passkey": "1.7.2",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/source-serif-4": "5.3.0",
+    "@tailwindcss/vite": "4.3.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "better-auth": "1.7.2",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.5",
+    "open-cap-format-ocf": "github:Open-Cap-Table-Coalition/Open-Cap-Format-OCF#v1.2.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router": "8.3.0",
+    "tailwind-merge": "3.6.0",
+    "tailwindcss": "4.3.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@types/bun": "1.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "drizzle-kit": "0.31.10",
+    "fast-check": "4.9.0",
+    "pdf-lib": "1.17.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

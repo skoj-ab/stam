@@ -1,0 +1,170 @@
+/*
+ * Stam design tokens — the single source of truth for the visual language.
+ *
+ * Raw values live here and NOWHERE else. Every colour, radius, shadow and font
+ * in the application must reach these values through a Tailwind utility
+ * (`bg-surface`, `text-ink-muted`, `border-rule`, ...) or through a component
+ * in `src/web/ui`. `bun run lint` fails on raw hex/rgb/oklch outside this file.
+ *
+ * Visual direction: "registry document". A share register is a legal record, so
+ * the interface reads like one — warm paper ground, near-black ink, hairline
+ * rules instead of shadows, a single restrained accent, tabular figures.
+ *
+ * Themes: light is the default on `:root`. Dark is applied both by the system
+ * preference (unless explicitly overridden to light) and by `data-theme="dark"`
+ * on <html>, so an explicit user choice always wins. See `useTheme` in
+ * `src/web/ui/theme.ts`.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- Ground and surfaces -------------------------------------------- */
+  --paper: oklch(98.6% 0.004 85); /* page background */
+  --surface: oklch(99.6% 0.002 85); /* panels, cards, menus, dialogs */
+  --surface-sunken: oklch(96.4% 0.005 85); /* table headers, inset wells */
+  --surface-hover: oklch(97.2% 0.005 85); /* row and item hover */
+  --surface-active: oklch(94.8% 0.006 85); /* pressed / selected item */
+
+  /* --- Ink -------------------------------------------------------------- */
+  --ink: oklch(22% 0.008 60); /* primary text */
+  --ink-muted: oklch(47% 0.008 60); /* secondary text, descriptions */
+  --ink-subtle: oklch(61% 0.007 60); /* column labels, meta, placeholders */
+  --ink-inverted: oklch(98.6% 0.004 85); /* text on accent/solid fills */
+
+  /* --- Rules (hairlines carry the structure; shadows are a last resort) - */
+  --rule: oklch(89% 0.006 70); /* default hairline */
+  --rule-strong: oklch(76% 0.008 70); /* table totals, section closers */
+  --rule-subtle: oklch(93.5% 0.005 70); /* dividers inside a panel */
+
+  /* --- Accent: registry ink-blue ---------------------------------------- */
+  --accent: oklch(43% 0.105 258);
+  --accent-hover: oklch(37% 0.105 258);
+  --accent-active: oklch(32% 0.1 258);
+  --accent-ink: oklch(38% 0.105 258); /* accent as readable text on paper */
+  --accent-subtle: oklch(95.5% 0.022 258); /* tinted background */
+  --accent-rule: oklch(84% 0.045 258);
+
+  /* --- Status ------------------------------------------------------------ */
+  --positive: oklch(45% 0.095 150);
+  --positive-ink: oklch(40% 0.095 150);
+  --positive-subtle: oklch(95.5% 0.03 150);
+  --positive-rule: oklch(83% 0.06 150);
+
+  --caution: oklch(58% 0.115 72);
+  --caution-ink: oklch(46% 0.1 62);
+  --caution-subtle: oklch(96% 0.04 82);
+  --caution-rule: oklch(84% 0.07 78);
+
+  --critical: oklch(48% 0.155 27);
+  --critical-ink: oklch(45% 0.155 27);
+  --critical-subtle: oklch(96% 0.028 27);
+  --critical-rule: oklch(85% 0.06 27);
+
+  /* --- Focus -------------------------------------------------------------- */
+  --focus: oklch(52% 0.14 258);
+
+  /* --- Elevation ---------------------------------------------------------- */
+  --shadow-raised-value: 0 1px 2px oklch(25% 0.02 70 / 0.06);
+  --shadow-popover-value:
+    0 6px 20px -4px oklch(25% 0.02 70 / 0.14), 0 1px 3px oklch(25% 0.02 70 / 0.07);
+  --shadow-dialog-value:
+    0 20px 56px -12px oklch(25% 0.02 70 / 0.26), 0 2px 6px oklch(25% 0.02 70 / 0.08);
+}
+
+/* Dark theme values, shared by the system preference and the explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --paper: oklch(17.5% 0.006 70);
+    --surface: oklch(21% 0.007 70);
+    --surface-sunken: oklch(15% 0.006 70);
+    --surface-hover: oklch(24% 0.008 70);
+    --surface-active: oklch(27.5% 0.009 70);
+
+    --ink: oklch(93.5% 0.005 85);
+    --ink-muted: oklch(72% 0.006 80);
+    --ink-subtle: oklch(58% 0.006 80);
+    --ink-inverted: oklch(17.5% 0.006 70);
+
+    --rule: oklch(31% 0.008 70);
+    --rule-strong: oklch(44% 0.009 70);
+    --rule-subtle: oklch(25.5% 0.007 70);
+
+    --accent: oklch(66% 0.115 258);
+    --accent-hover: oklch(73% 0.11 258);
+    --accent-active: oklch(78% 0.1 258);
+    --accent-ink: oklch(76% 0.1 258);
+    --accent-subtle: oklch(28% 0.055 258);
+    --accent-rule: oklch(40% 0.08 258);
+
+    --positive: oklch(64% 0.11 152);
+    --positive-ink: oklch(76% 0.1 152);
+    --positive-subtle: oklch(27% 0.05 152);
+    --positive-rule: oklch(38% 0.07 152);
+
+    --caution: oklch(74% 0.125 78);
+    --caution-ink: oklch(82% 0.11 82);
+    --caution-subtle: oklch(29% 0.055 72);
+    --caution-rule: oklch(41% 0.075 75);
+
+    --critical: oklch(64% 0.155 27);
+    --critical-ink: oklch(75% 0.13 27);
+    --critical-subtle: oklch(28% 0.07 27);
+    --critical-rule: oklch(41% 0.1 27);
+
+    --focus: oklch(70% 0.13 258);
+
+    --shadow-raised-value: 0 1px 2px oklch(0% 0 0 / 0.35);
+    --shadow-popover-value: 0 6px 20px -4px oklch(0% 0 0 / 0.55), 0 1px 3px oklch(0% 0 0 / 0.4);
+    --shadow-dialog-value: 0 20px 56px -12px oklch(0% 0 0 / 0.65), 0 2px 6px oklch(0% 0 0 / 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: oklch(17.5% 0.006 70);
+  --surface: oklch(21% 0.007 70);
+  --surface-sunken: oklch(15% 0.006 70);
+  --surface-hover: oklch(24% 0.008 70);
+  --surface-active: oklch(27.5% 0.009 70);
+
+  --ink: oklch(93.5% 0.005 85);
+  --ink-muted: oklch(72% 0.006 80);
+  --ink-subtle: oklch(58% 0.006 80);
+  --ink-inverted: oklch(17.5% 0.006 70);
+
+  --rule: oklch(31% 0.008 70);
+  --rule-strong: oklch(44% 0.009 70);
+  --rule-subtle: oklch(25.5% 0.007 70);
+
+  --accent: oklch(66% 0.115 258);
+  --accent-hover: oklch(73% 0.11 258);
+  --accent-active: oklch(78% 0.1 258);
+  --accent-ink: oklch(76% 0.1 258);
+  --accent-subtle: oklch(28% 0.055 258);
+  --accent-rule: oklch(40% 0.08 258);
+
+  --positive: oklch(64% 0.11 152);
+  --positive-ink: oklch(76% 0.1 152);
+  --positive-subtle: oklch(27% 0.05 152);
+  --positive-rule: oklch(38% 0.07 152);
+
+  --caution: oklch(74% 0.125 78);
+  --caution-ink: oklch(82% 0.11 82);
+  --caution-subtle: oklch(29% 0.055 72);
+  --caution-rule: oklch(41% 0.075 75);
+
+  --critical: oklch(64% 0.155 27);
+  --critical-ink: oklch(75% 0.13 27);
+  --critical-subtle: oklch(28% 0.07 27);
+  --critical-rule: oklch(41% 0.1 27);
+
+  --focus: oklch(70% 0.13 258);
+
+  --shadow-raised-value: 0 1px 2px oklch(0% 0 0 / 0.35);
+  --shadow-popover-value: 0 6px 20px -4px oklch(0% 0 0 / 0.55), 0 1px 3px oklch(0% 0 0 / 0.4);
+  --shadow-dialog-value: 0 20px 56px -12px oklch(0% 0 0 / 0.65), 0 2px 6px oklch(0% 0 0 / 0.45);
+}
