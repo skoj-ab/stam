@@ -25,6 +25,9 @@ type CaptureRequest = Readonly<{
 }>;
 type NumericField = Readonly<{ source: string; description: string }>;
 type HtmlFragment = Readonly<{ source: string }>;
+type HtmlAttributeQuote = '"' | "'";
+type HtmlTagState = Readonly<{ attributeQuote?: HtmlAttributeQuote }>;
+type HtmlTagCharacter = Readonly<{ character: string; state: HtmlTagState }>;
 type SourceLine = Readonly<{ source: string }>;
 
 export abstract class SourceDocumentParser<Result> {
@@ -99,9 +102,27 @@ export abstract class SourceDocumentParser<Result> {
   }
 
   protected visibleHtmlText({ source }: HtmlFragment): string {
-    return this.decodeHtmlEntities({ source: source.replace(/<[^>]+>/g, "") })
+    const visibleCharacters: string[] = [];
+    let tagState: HtmlTagState | undefined;
+    for (const character of source) {
+      if (tagState) tagState = this.advanceHtmlTag({ character, state: tagState });
+      else if (character === "<") tagState = {};
+      else visibleCharacters.push(character);
+    }
+
+    return this.decodeHtmlEntities({ source: visibleCharacters.join("") })
       .replace(/[\u00a0\u202f]/g, " ")
       .trim();
+  }
+
+  private advanceHtmlTag({ character, state }: HtmlTagCharacter): HtmlTagState | undefined {
+    if (state.attributeQuote) {
+      return character === state.attributeQuote ? {} : state;
+    }
+    if ("\"'".includes(character)) {
+      return { attributeQuote: character as HtmlAttributeQuote };
+    }
+    return character === ">" ? undefined : state;
   }
 
   private decodeHtmlEntities({ source }: HtmlFragment): string {

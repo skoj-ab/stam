@@ -314,6 +314,19 @@ describe("Fortnox import parser", () => {
     );
   });
 
+  test("extracts visible text from tags with quoted angle brackets", () => {
+    const [event] = parseFortnoxEventsHtml(
+      eventMarkup(
+        "101",
+        "2022-01-01",
+        "Transaktion",
+        '<span title="<ignored>">Testbolag</span> k&ouml;pte 2 aktier',
+      ),
+    );
+
+    expect(event?.description).toBe("Testbolag köpte 2 aktier");
+  });
+
   test("collects warnings for unsupported and source-inconsistent history", () => {
     const parsed = parseFortnoxImport({
       detailedRegisterText: detailedRegisterText.replace(
