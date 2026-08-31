@@ -151,7 +151,7 @@ describe("Better Auth configuration", () => {
       expect(database.db.select().from(account).all()).toHaveLength(1);
 
       await expect(bootstrapFirstAdmin(auth, database, adminCredentials)).rejects.toThrow(
-        "before the first user",
+        "already been completed",
       );
 
       const signedIn = await auth.api.signInEmail({

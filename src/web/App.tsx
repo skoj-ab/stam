@@ -12,7 +12,13 @@ import {
   NotFoundRoute,
   RouteError,
 } from "./routes/ApplicationLayoutRoute";
-import { AcceptInvitationRoute, LoginRoute } from "./routes/AuthRoutes";
+import {
+  AcceptInvitationRoute,
+  LoginRoute,
+  loginLoader,
+  SetupRoute,
+  setupLoader,
+} from "./routes/AuthRoutes";
 import {
   CreateShareClassRoute,
   CreateShareholderRoute,
@@ -48,7 +54,13 @@ const router = createBrowserRouter([
   },
   {
     path: "/login",
+    loader: loginLoader,
     element: <LoginRoute />,
+  },
+  {
+    path: "/setup",
+    loader: setupLoader,
+    element: <SetupRoute />,
   },
   {
     path: "/accept-invitation",

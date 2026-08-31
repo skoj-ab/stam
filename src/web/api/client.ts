@@ -27,6 +27,12 @@ export type SessionData = {
   user: { id: string; name: string; email: string; role?: string | null };
 };
 
+export type SetupStatus = { required: boolean };
+
+export type InitialAdmin = {
+  user: { id: string; name: string; email: string; role?: string | null };
+};
+
 export type AdminDirectory = {
   asOf: string;
   users: Array<{
@@ -276,6 +282,21 @@ export function errorMessage(error: unknown): string {
 
 export function getSession(): Promise<SessionData> {
   return requestJson({ path: "/api/session" });
+}
+
+export function getSetupStatus(): Promise<SetupStatus> {
+  return requestJson({ path: "/api/setup/status" });
+}
+
+export function createInitialAdmin(input: {
+  email: string;
+  name: string;
+  password: string;
+}): Promise<InitialAdmin> {
+  return requestJson({
+    path: "/api/setup",
+    init: { method: "POST", body: JSON.stringify(input) },
+  });
 }
 
 export function getAdminDirectory(): Promise<AdminDirectory> {

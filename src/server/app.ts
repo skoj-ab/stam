@@ -17,8 +17,11 @@ import { apikey } from "../db/schema.ts";
 import { ShareRegisterError } from "../domain/share-register/index.ts";
 import {
   type AuthVariables,
+  bootstrapFirstAdmin,
   createAdminInvitation,
   createAuthSessionMiddleware,
+  InitialSetupCompletedError,
+  initialSetupRequired,
   listAdminDirectory,
   mountAuthRoutes,
   removeUser,
@@ -177,10 +180,14 @@ function notFoundErrorResponse(error: Error, context: AppContext): Response | un
   return context.json({ error: error.message }, 404);
 }
 
+function isConflictError(error: Error): boolean {
+  if (error instanceof ShareRegisterError) return true;
+  if (error instanceof ApplicationConflictError) return true;
+  return error instanceof InitialSetupCompletedError;
+}
+
 function conflictErrorResponse(error: Error, context: AppContext): Response | undefined {
-  if (!(error instanceof ShareRegisterError) && !(error instanceof ApplicationConflictError)) {
-    return undefined;
-  }
+  if (!isConflictError(error)) return undefined;
   return context.json(
     {
       error: error.message,
@@ -188,6 +195,36 @@ function conflictErrorResponse(error: Error, context: AppContext): Response | un
     },
     409,
   );
+}
+
+function mountSetupRoutes(
+  app: Hono<{ Variables: AuthVariables }>,
+  database: DatabaseContext,
+  auth: StamAuth,
+  environment: Environment,
+): void {
+  app.get("/api/setup/status", (context) => {
+    context.header("Cache-Control", "no-store");
+    return context.json({ required: initialSetupRequired(database) });
+  });
+  app.post("/api/setup", async (context) => {
+    if (context.req.header("origin") !== new URL(environment.PUBLIC_ORIGIN).origin) {
+      return context.json({ error: "Forbidden origin" }, 403);
+    }
+    const result = await bootstrapFirstAdmin(auth, database, await context.req.json());
+    context.header("Cache-Control", "no-store");
+    return context.json(
+      {
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+        },
+      },
+      201,
+    );
+  });
 }
 
 function authErrorResponse(error: Error, context: AppContext): Response | undefined {
@@ -507,6 +544,7 @@ export function createApp(
     return context.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  mountSetupRoutes(app, database, auth, environment);
   mountAuthRoutes(app, auth, database);
   app.route("/api", createApplicationApi(database, auth, environment));
 

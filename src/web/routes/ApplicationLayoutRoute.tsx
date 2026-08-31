@@ -16,6 +16,7 @@ import {
   type Company,
   errorMessage,
   getSession,
+  getSetupStatus,
   listCompanies,
   type SessionData,
 } from "../api/client";
@@ -199,6 +200,7 @@ function AccountMenu({ userName, isAdmin }: { userName: string; isAdmin: boolean
 
 export async function applicationLoader(): Promise<ApplicationData | Response> {
   try {
+    if ((await getSetupStatus()).required) return redirect("/setup");
     const [session, companies] = await Promise.all([getSession(), listCompanies()]);
     return { session, companies };
   } catch (error) {
