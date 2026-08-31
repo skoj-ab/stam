@@ -2,10 +2,11 @@
 
 ## Conventions
 
-The server exposes JSON under `/api`. `/api/health` and the authentication flow
-are public as described below; every other application endpoint requires either
-a valid Better Auth session cookie or a user-owned API key. Every authenticated
-user can access and mutate every company except for permanent company removal.
+The server exposes JSON under `/api`. `/api/health`, first-run setup, and the
+authentication flow are public as described below; every other application
+endpoint requires either a valid Better Auth session cookie or a user-owned API
+key. Every authenticated user can access and mutate every company except for
+permanent company removal.
 Only a user whose comma-separated global `role` contains `admin` can list users
 and invitations, create invitations, or permanently remove a company.
 
@@ -39,7 +40,7 @@ Common application failures are:
 | `409` | `{ "error": "...", "code"?: "..." }` |
 | `500` | `{ "error": "Internal server error" }` |
 
-## Health and session
+## Health, setup, and session
 
 ### `GET /api/health`
 
@@ -48,6 +49,32 @@ Public. Executes a SQLite `SELECT 1`.
 ```json
 { "status": "ok", "timestamp": "2026-08-28T12:00:00.000Z" }
 ```
+
+### `GET /api/setup/status`
+
+Public and never cached. Reports whether the database has no users:
+
+```json
+{ "required": true }
+```
+
+### `POST /api/setup`
+
+Public only while setup is required. The request must include an `Origin`
+header exactly matching `PUBLIC_ORIGIN`:
+
+```json
+{
+  "name": "Administrator",
+  "email": "admin@example.com",
+  "password": "the-password"
+}
+```
+
+Success is `201` and returns the created administrator's public identity. Once
+one request succeeds, later requests return `409`. Concurrent requests are
+serialized by the supported single application process. The first successful
+caller controls the installation.
 
 ### `GET /api/session`
 

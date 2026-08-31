@@ -25,18 +25,15 @@ system's living reference is served at `/design`.
 bun install --frozen-lockfile
 cp .env.example .env
 bun run db:migrate
-STAM_ADMIN_EMAIL=admin@example.com \
-STAM_ADMIN_NAME=Administrator \
-STAM_ADMIN_PASSWORD='replace-with-a-strong-password' \
-bun run auth:bootstrap
 bun run dev
 ```
 
 The development SPA is served at `http://localhost:5174` and proxies
 `/api` to the Hono server at `http://localhost:3100`. `bun run dev:server` alone
 starts only the API. Migrations also run automatically before the HTTP listener
-starts. The bootstrap command applies migrations and refuses to run after any
-user exists.
+starts. Open `/setup` to create the first administrator. Setup is available only
+while the user table is empty; the first person to complete it becomes the
+global administrator.
 
 Sign in at `/login`. The selected company is part of the URL, so register,
 history, event, shareholder, and share-class views can be bookmarked directly.
@@ -75,27 +72,39 @@ notice files.
 export AUTH_SECRET="$(openssl rand -base64 48)"
 export PUBLIC_ORIGIN=https://stam.example.com
 export WEBAUTHN_RP_ID=stam.example.com
-docker compose build
+export STAM_VERSION=edge # Prefer an exact release version in production.
+docker compose pull
 docker compose up -d
 docker compose ps
 ```
 
-Create the first administrator before exposing a new installation:
+Open `https://stam.example.com/setup` immediately and create the first
+administrator. The setup page is intentionally open on an empty database: the
+first visitor can claim the installation. It disappears after the administrator
+is created.
+
+To build the image from the current checkout instead:
 
 ```bash
-docker compose stop stam
-docker compose run --rm \
-  -e STAM_ADMIN_EMAIL=admin@example.com \
-  -e STAM_ADMIN_NAME=Administrator \
-  -e STAM_ADMIN_PASSWORD='replace-with-a-strong-password' \
-  stam bun dist/server/bootstrap-admin.js
-docker compose up -d
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
 Compose runs one non-root application service, uses the `stam-data` named volume,
 binds HTTP only to host loopback, checks `/api/health`, and allows 30 seconds
 for graceful shutdown. Production must terminate TLS at a reverse proxy and
 forward the public origin unchanged.
+
+For automatic HTTPS after DNS points to the host and inbound ports 80 and 443
+are open, add the Caddy configuration:
+
+```bash
+docker compose -f compose.yaml -f compose.caddy.yaml up -d
+```
+
+Docker Swarm stacks for an existing reverse proxy and for bundled Caddy are
+provided as `stack.yaml` and `stack.caddy.yaml`. Both enforce one Stam replica
+on a labeled data node and use a Docker secret for `AUTH_SECRET`; see
+[Operations](docs/operations.md#docker-swarm).
 
 ## Documentation
 

@@ -58,6 +58,7 @@ operator able to remove triggers.
 | `PORT` | `3100` | Optional, `3100` in the image |
 | `DATABASE_PATH` | `./data/stam.sqlite` | `/data/stam.sqlite` in Compose |
 | `AUTH_SECRET` | Development-only value | Required, at least 32 characters |
+| `AUTH_SECRET_FILE` | Unset | Alternative file containing `AUTH_SECRET` |
 | `PUBLIC_ORIGIN` | `http://localhost:5174` | Required absolute HTTPS origin, without a path |
 | `WEBAUTHN_RP_ID` | `localhost` | Required WebAuthn relying-party domain |
 
@@ -71,6 +72,11 @@ AUTH_SECRET=replace-with-a-secret-of-at-least-32-characters
 PUBLIC_ORIGIN=https://stam.example.com
 WEBAUTHN_RP_ID=stam.example.com
 ```
+
+Configure only one of `AUTH_SECRET` and `AUTH_SECRET_FILE`. The file form reads
+the secret at startup and removes one trailing line ending, which makes it
+compatible with Docker Swarm secrets mounted under `/run/secrets`. It does not
+put the secret in the service environment.
 
 `PUBLIC_ORIGIN` is the browser-visible origin and is used for cookie, trusted
 origin, CSRF, invitation URL, and WebAuthn checks. Production rejects HTTP.
@@ -111,8 +117,18 @@ already-deployed migration; add and review a new migration with
 
 ## First administrator
 
-Bootstrap is the only supported way to create the initial password user and
-global administrator:
+On an empty database, browsing to `/`, `/login`, or `/setup` opens the initial
+setup page. Enter the administrator's name, email address, and password. The
+password must be 8 to 128 characters. Successful setup creates the global
+administrator, signs it in, and closes the setup page while any user exists.
+Public email/password sign-up remains disabled.
+
+The setup page is deliberately unauthenticated. The first visitor who submits
+it becomes the administrator. Complete setup immediately and do not leave a new
+installation exposed unattended.
+
+For unattended or local development setup, the command-line bootstrap remains
+available:
 
 ```bash
 STAM_ADMIN_EMAIL=admin@example.com \
@@ -121,23 +137,10 @@ STAM_ADMIN_PASSWORD='replace-with-a-strong-password' \
 bun run auth:bootstrap
 ```
 
-The password must be 8 to 128 characters. Keep it out of shell history where
-possible, unset the variables afterwards, then use **Registrera passkey** in the
-authenticated account menu. Bootstrap checks that the user table is empty and
-permanently refuses once the first user exists. Public email/password sign-up is
-disabled.
-
-For Compose, stop the application while bootstrapping a fresh volume:
-
-```bash
-docker compose stop stam
-docker compose run --rm \
-  -e STAM_ADMIN_EMAIL=admin@example.com \
-  -e STAM_ADMIN_NAME=Administrator \
-  -e STAM_ADMIN_PASSWORD='replace-with-a-strong-password' \
-  stam bun dist/server/bootstrap-admin.js
-docker compose up -d
-```
+Keep command-line passwords out of shell history where possible and unset the
+variables afterwards. Both setup paths serialize creation within one process,
+check that the user table is empty, and refuse once the first user exists. Use
+**Registrera passkey** in the authenticated account menu after setup.
 
 An authenticated global administrator creates invitations with the **Användare
 och inbjudningar** page or `POST /api/admin/invitations`. The returned token is
@@ -170,6 +173,10 @@ Typst `0.15.1`, and Liberation fonts. Typst release archives are selected for
 amd64 or arm64 and verified by SHA-256 during the build. The process runs as the
 base image's non-root `bun` user.
 
+The public image is `ghcr.io/skoj-ab/stam`. Exact semantic versions are release
+artifacts; `edge` tracks `main` and is intended for evaluation. Production
+deployments should set `STAM_VERSION` to an exact release.
+
 PDF exports compile a self-contained JSON snapshot through the bundled Typst
 template into PDF/A-2b. Compilation runs as a one-job subprocess with a
 15-second timeout. Its private temporary workspace is removed after success or
@@ -184,10 +191,17 @@ container defaults to UTC unless its runtime timezone is configured differently.
 export AUTH_SECRET="$(openssl rand -base64 48)"
 export PUBLIC_ORIGIN=https://stam.example.com
 export WEBAUTHN_RP_ID=stam.example.com
-docker compose build
+export STAM_VERSION=0.1.0
+docker compose pull
 docker compose up -d
 docker compose ps
 docker compose logs -f stam
+```
+
+To build the checkout instead of pulling GHCR, add the build override:
+
+```bash
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
 The deployment is intentionally one service, one process, one replica, and one
@@ -195,6 +209,71 @@ named volume. `/data` must be a durable local Docker volume on the same host as
 the process. Do not use NFS, SMB, object-storage mounts, distributed filesystems,
 multiple containers sharing the file, or `docker compose up --scale stam=2`.
 SQLite locking and WAL do not provide a multi-replica deployment model.
+
+### Automatic HTTPS with Caddy
+
+Caddy can obtain and renew a public certificate when the domain's `A`/`AAAA`
+records point to the Docker host and inbound TCP ports 80 and 443 are open. UDP
+443 enables HTTP/3 but is not required for certificate issuance.
+
+```bash
+docker compose -f compose.yaml -f compose.caddy.yaml up -d
+```
+
+The Caddy volumes retain account and certificate state. Caddy redirects HTTP to
+HTTPS and proxies to Stam over the Compose network. Starting this configuration
+immediately exposes the unauthenticated first-run setup page.
+
+### Docker Swarm
+
+Stam remains a single-replica SQLite service under Swarm. Choose one durable
+node, label it, and create the local volume on that node:
+
+```bash
+docker node update --label-add stam-data=true DATA_NODE
+docker volume create stam-data
+```
+
+Run `docker volume create` on `DATA_NODE` itself. The placement constraint keeps
+the service attached to that node-local volume; Swarm rescheduling is not
+database failover. Restore a verified backup before moving Stam to another
+node.
+
+Create the runtime secret from a manager without putting it in a service
+environment:
+
+```bash
+openssl rand -base64 48 | docker secret create stam_auth_secret -
+```
+
+For an existing Swarm reverse proxy, create or reuse an attachable overlay
+network named `stam-proxy`, connect the proxy to it, export the public settings,
+and deploy:
+
+```bash
+docker network create --driver overlay --attachable stam-proxy
+export PUBLIC_ORIGIN=https://stam.example.com
+export WEBAUTHN_RP_ID=stam.example.com
+export STAM_VERSION=0.1.0
+docker stack deploy --compose-file stack.yaml stam
+```
+
+The stack publishes no application port; the existing proxy reaches service
+`stam_stam` on port 3100 through `stam-proxy`.
+
+For bundled Caddy, DNS and firewall prerequisites are the same as the Compose
+variant. Create Caddy's node-local volumes on `DATA_NODE`, then deploy the
+self-contained stack:
+
+```bash
+docker volume create caddy-data
+docker volume create caddy-config
+docker stack deploy --compose-file stack.caddy.yaml stam
+```
+
+Both stacks specify one replica, stop-first updates, a 30-second shutdown
+window, and paused failed updates. Open `/setup` immediately after the service
+becomes healthy. Backups must still be copied off the Swarm node.
 
 The healthcheck calls `GET /api/health`, which executes `SELECT 1`. It proves the
 process and SQLite connection respond; it is not an external dependency or

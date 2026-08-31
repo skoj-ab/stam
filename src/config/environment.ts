@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 
 const environmentSchema = z.object({
@@ -9,22 +10,71 @@ const environmentSchema = z.object({
   WEBAUTHN_RP_ID: z.string().min(1).default("localhost"),
 });
 
+const documentedAuthSecretPlaceholder = "replace-with-at-least-32-random-characters";
+const rpIdPattern =
+  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
 export type Environment = z.infer<typeof environmentSchema>;
 
-export function readEnvironment(source: Record<string, string | undefined> = Bun.env): Environment {
-  const result = environmentSchema.safeParse(source);
+function resolveAuthSecret(source: Record<string, string | undefined>) {
+  const valueConfigured = source.AUTH_SECRET !== undefined;
+  const fileConfigured = source.AUTH_SECRET_FILE !== undefined;
+  if (valueConfigured && fileConfigured) {
+    throw new Error("Configure only one of AUTH_SECRET and AUTH_SECRET_FILE");
+  }
+  if (!fileConfigured) return source;
+
+  const path = source.AUTH_SECRET_FILE;
+  if (!path) throw new Error("AUTH_SECRET_FILE must not be empty");
+  return {
+    ...source,
+    AUTH_SECRET: readFileSync(path, "utf8").replace(/\r?\n$/, ""),
+  };
+}
+
+function parseEnvironment(source: Record<string, string | undefined>): Environment {
+  const result = environmentSchema.safeParse(resolveAuthSecret(source));
   if (!result.success) {
     throw new Error(`Invalid environment configuration: ${result.error.message}`);
   }
-
-  if (result.data.NODE_ENV === "production") {
-    if (result.data.AUTH_SECRET === "development-only-secret-change-me-now") {
-      throw new Error("AUTH_SECRET must be configured in production");
-    }
-    if (!result.data.PUBLIC_ORIGIN.startsWith("https://")) {
-      throw new Error("PUBLIC_ORIGIN must use HTTPS in production");
-    }
-  }
-
   return result.data;
+}
+
+function validateProductionSecret(secret: string): void {
+  if (
+    secret === "development-only-secret-change-me-now" ||
+    secret === documentedAuthSecretPlaceholder
+  ) {
+    throw new Error("AUTH_SECRET must be configured in production");
+  }
+}
+
+function validateProductionOrigin(value: string): URL {
+  const origin = new URL(value);
+  if (origin.protocol !== "https:" || origin.origin !== value) {
+    throw new Error("PUBLIC_ORIGIN must be an HTTPS origin without a path in production");
+  }
+  return origin;
+}
+
+function validateProductionRpId(rpId: string, originHostname: string): void {
+  const rpMatchesOrigin = originHostname === rpId || originHostname.endsWith(`.${rpId}`);
+  if (!rpIdPattern.test(rpId) || !rpMatchesOrigin) {
+    throw new Error(
+      "WEBAUTHN_RP_ID must be a lowercase domain matching PUBLIC_ORIGIN without a scheme, port, or path",
+    );
+  }
+}
+
+function validateProductionEnvironment(environment: Environment): void {
+  if (environment.NODE_ENV !== "production") return;
+  validateProductionSecret(environment.AUTH_SECRET);
+  const publicOrigin = validateProductionOrigin(environment.PUBLIC_ORIGIN);
+  validateProductionRpId(environment.WEBAUTHN_RP_ID, publicOrigin.hostname);
+}
+
+export function readEnvironment(source: Record<string, string | undefined> = Bun.env): Environment {
+  const environment = parseEnvironment(source);
+  validateProductionEnvironment(environment);
+  return environment;
 }

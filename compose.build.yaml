@@ -1,0 +1,5 @@
+services:
+  stam:
+    image: stam:local
+    build:
+      context: .

@@ -1,0 +1,25 @@
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    command:
+      - caddy
+      - reverse-proxy
+      - --from
+      - ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      - --to
+      - stam:3100
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      stam:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -34,3 +34,5 @@ Stam stores personal identifiers and legally significant ownership records.
 Operators are responsible for TLS termination, access control, filesystem and
 backup protection, secret management, updates, monitoring, and applicable data
 protection obligations. The application is not a substitute for legal advice.
+On an empty database, the first visitor to `/setup` can create the global
+administrator. Complete setup immediately after deployment.
