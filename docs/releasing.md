@@ -13,8 +13,10 @@ Every successful push to `main` publishes:
 The workflow verifies the application, builds and smoke-tests the runtime image,
 scans it for fixed high or critical vulnerabilities, and then publishes amd64 and arm64
 manifests. The registry artifact includes BuildKit SBOM and provenance
-attestations plus a GitHub build-provenance attestation. The package is set to
-public after publication.
+attestations plus a GitHub build-provenance attestation. After the package is
+published for the first time, an organization owner must set its visibility to
+public in the GitHub package settings; GitHub does not expose that operation
+through its Packages REST API.
 
 ## Version releases
 
