@@ -43,7 +43,7 @@ jobs:
         with:
           image: stam:ci
           fail-build: true
-          severity-cutoff: critical
+          severity-cutoff: high
           only-fixed: true
           output-format: table
 

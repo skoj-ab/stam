@@ -11,7 +11,7 @@ Every successful push to `main` publishes:
 - `sha-<short-commit>`, which identifies the exact source revision.
 
 The workflow verifies the application, builds and smoke-tests the runtime image,
-scans it for fixed critical vulnerabilities, and then publishes amd64 and arm64
+scans it for fixed high or critical vulnerabilities, and then publishes amd64 and arm64
 manifests. The registry artifact includes BuildKit SBOM and provenance
 attestations plus a GitHub build-provenance attestation. The package is set to
 public after publication.

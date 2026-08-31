@@ -40,6 +40,7 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/data/stam.sqlite
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends fonts-liberation poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /data \
