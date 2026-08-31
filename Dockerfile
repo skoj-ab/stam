@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM debian:bookworm-slim AS typst
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS typst
 ARG TARGETARCH
 ARG TYPST_VERSION=0.15.1
 RUN apt-get update \
@@ -18,7 +18,7 @@ RUN apt-get update \
     && install -D -m 0644 /tmp/typst/LICENSE /usr/share/licenses/typst/LICENSE \
     && install -D -m 0644 /tmp/typst/NOTICE /usr/share/licenses/typst/NOTICE
 
-FROM oven/bun:1.4.0 AS dependencies
+FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS dependencies
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
@@ -27,9 +27,13 @@ FROM dependencies AS build
 COPY . .
 RUN bun run build
 
-FROM oven/bun:1.4.0 AS runtime
+FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS runtime
 WORKDIR /app
-LABEL org.opencontainers.image.source="https://github.com/skoj-ab/stam" \
+LABEL org.opencontainers.image.title="Stam" \
+      org.opencontainers.image.description="A self-hosted share register for Swedish private limited companies" \
+      org.opencontainers.image.url="https://github.com/skoj-ab/stam" \
+      org.opencontainers.image.documentation="https://github.com/skoj-ab/stam/blob/main/docs/operations.md" \
+      org.opencontainers.image.source="https://github.com/skoj-ab/stam" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
 ENV NODE_ENV=production \
     PORT=3100 \
@@ -58,4 +62,6 @@ RUN test -s /usr/share/licenses/typst/LICENSE \
 USER bun
 EXPOSE 3100
 VOLUME ["/data"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
+  CMD ["bun", "-e", "const response = await fetch('http://127.0.0.1:3100/api/health'); process.exit(response.ok ? 0 : 1)"]
 CMD ["bun", "dist/server/index.js"]

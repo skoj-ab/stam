@@ -116,6 +116,7 @@ on a labeled data node and use a Docker secret for `AUTH_SECRET`; see
   behavior.
 - [Contributing](CONTRIBUTING.md): development workflow and verification rules.
 - [Security](SECURITY.md): supported versions and private vulnerability reporting.
+- [Releasing](docs/releasing.md): image tags, attestations, and release procedure.
 
 Every authenticated user can access every company. There are no tenants,
 company memberships, or per-company roles. Only global administrators can
