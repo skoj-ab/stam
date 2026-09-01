@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APIError } from "better-auth/api";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { readEnvironment } from "../../src/config/environment.ts";
 import { type DatabaseContext, openDatabase } from "../../src/db/database.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
@@ -363,6 +363,127 @@ describe("opaque invitations", () => {
       expect(finishPasskeyRegistration(database, undefined, admin.id)).toEqual({
         userId: admin.id,
       });
+    });
+  });
+});
+
+describe("invitation password acceptance", () => {
+  test("creates a credential and authenticated session while consuming the invitation", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "password-invitee@example.com", name: "Password Invitee" },
+        })
+      ).user;
+      const invitation = createInvitation(database, {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
+        createdBy: admin.id,
+      });
+
+      const response = await auth.handler(
+        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: publicOrigin },
+          body: JSON.stringify({
+            token: invitation.token,
+            newPassword: "invited-correct-horse-battery-staple",
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      const cookie = response.headers.getSetCookie()[0]?.split(";", 1)[0];
+      expect(cookie).toBeDefined();
+      expect(
+        database.db
+          .select()
+          .from(account)
+          .where(and(eq(account.userId, invitee.id), eq(account.providerId, "credential")))
+          .all(),
+      ).toHaveLength(1);
+      expect(
+        database.db.select().from(session).where(eq(session.userId, invitee.id)).all(),
+      ).toHaveLength(1);
+      expectInvitationCode(
+        () => resolveInvitation(database, invitation.token),
+        INVITATION_ERROR_CODES.consumed,
+      );
+
+      const sessionResponse = await auth.handler(
+        new Request(`${publicOrigin}/api/auth/get-session`, {
+          headers: { cookie: cookie ?? "" },
+        }),
+      );
+      expect(sessionResponse.status).toBe(200);
+      expect(await sessionResponse.json()).toMatchObject({ user: { id: invitee.id } });
+
+      const signInResponse = await auth.handler(
+        new Request(`${publicOrigin}/api/auth/sign-in/email`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: publicOrigin },
+          body: JSON.stringify({
+            email: invitee.email,
+            password: "invited-correct-horse-battery-staple",
+          }),
+        }),
+      );
+      expect(signInResponse.status).toBe(200);
+    });
+  });
+
+  test("does not consume an invitation for an existing password account", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitation = createInvitation(database, {
+        userId: admin.id,
+        email: admin.email,
+        name: admin.name,
+        createdBy: admin.id,
+      });
+
+      const response = await auth.handler(
+        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: publicOrigin },
+          body: JSON.stringify({ token: invitation.token, newPassword: "replacement-password" }),
+        }),
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: "CREDENTIAL_ACCOUNT_EXISTS" });
+      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
+    });
+  });
+
+  test("requires the configured origin before accepting a password", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "origin-check@example.com", name: "Origin Check" },
+        })
+      ).user;
+      const invitation = createInvitation(database, {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
+        createdBy: admin.id,
+      });
+
+      const response = await auth.handler(
+        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: invitation.token, newPassword: "valid-password" }),
+        }),
+      );
+
+      expect(response.status).toBe(403);
+      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
     });
   });
 });

@@ -65,6 +65,9 @@ function authAuditForPath(path: string): AuthAudit | undefined {
   if (path === "/passkey/verify-authentication") {
     return { type: "AUTH_LOGIN", payload: { method: "PASSKEY" } };
   }
+  if (path === "/invitation/accept-password") {
+    return { type: "AUTH_LOGIN", payload: { method: "PASSWORD_INVITATION" } };
+  }
   if (path === "/sign-out") return { type: "AUTH_LOGOUT", payload: {} };
   if (path === "/passkey/verify-registration") {
     return { type: "AUTH_PASSKEY_REGISTERED", payload: {} };

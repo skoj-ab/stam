@@ -6,6 +6,7 @@ import { admin } from "better-auth/plugins";
 import type { Environment } from "../../config/environment.ts";
 import type { DatabaseContext } from "../../db/database.ts";
 import * as schema from "../../db/schema.ts";
+import { invitationPassword } from "./invitation-password.ts";
 import { consumeInvitation, resolveInvitation } from "./invitations.ts";
 
 export function finishPasskeyRegistration(
@@ -32,7 +33,12 @@ export function createAuth(database: DatabaseContext, environment: Environment) 
       enabled: true,
       disableSignUp: true,
     },
+    rateLimit: {
+      enabled: environment.NODE_ENV !== "test",
+      storage: "memory",
+    },
     plugins: [
+      invitationPassword(database),
       admin(),
       apiKey({
         enableSessionForAPIKeys: true,
