@@ -759,7 +759,7 @@ describe("HTTP application composition", () => {
     });
   });
 
-  test("allows every authenticated user to manage catalogs, events, and snapshots", async () => {
+  test("allows writable users to manage catalogs, events, and snapshots", async () => {
     await withTestApp(async (app, database, auth) => {
       const users = await createAuthenticatedUsers(app, database, auth);
       const company = await createCompanyAndCheckGlobalAccess(users);
