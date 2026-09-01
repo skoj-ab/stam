@@ -43,6 +43,7 @@ export type Invitation = Readonly<{
   createdAt: Date;
   createdBy: string;
   consumedAt: Date | null;
+  revokedAt: Date | null;
 }>;
 
 export type CreatedInvitation = Readonly<{
@@ -54,6 +55,7 @@ export const INVITATION_ERROR_CODES = {
   invalid: "INVALID_INVITATION",
   expired: "EXPIRED_INVITATION",
   consumed: "CONSUMED_INVITATION",
+  revoked: "REVOKED_INVITATION",
   userMismatch: "INVITATION_USER_MISMATCH",
 } as const;
 
@@ -82,6 +84,7 @@ function toInvitation(row: typeof invitations.$inferSelect): Invitation {
     createdAt: row.createdAt,
     createdBy: row.createdBy,
     consumedAt: row.consumedAt,
+    revokedAt: row.revokedAt,
   });
 }
 
@@ -106,6 +109,9 @@ function requireValidRow(
   }
   if (result.invitation.consumedAt) {
     throw invitationError(INVITATION_ERROR_CODES.consumed, "Invitation has already been used");
+  }
+  if (result.invitation.revokedAt) {
+    throw invitationError(INVITATION_ERROR_CODES.revoked, "Invitation has been superseded");
   }
   if (result.invitation.expiresAt.getTime() <= now.getTime()) {
     throw invitationError(INVITATION_ERROR_CODES.expired, "Invitation has expired");
@@ -170,8 +176,22 @@ export function createInvitation(
     createdAt,
     createdBy: values.createdBy,
     consumedAt: null,
+    revokedAt: null,
   };
   const persist = () => {
+    const superseded = database.db
+      .update(invitations)
+      .set({ revokedAt: createdAt })
+      .where(
+        and(
+          eq(invitations.userId, values.userId),
+          isNull(invitations.consumedAt),
+          isNull(invitations.revokedAt),
+          gt(invitations.expiresAt, createdAt),
+        ),
+      )
+      .returning({ id: invitations.id })
+      .all();
     database.db.insert(invitations).values(row).run();
     recordAuditEvent(database, {
       type: "INVITATION_CREATED",
@@ -180,7 +200,11 @@ export function createInvitation(
       actorUserId: values.createdBy,
       targetKind: "INVITATION",
       targetId: row.id,
-      payload: { targetUserId: row.userId, expiresAt: row.expiresAt.toISOString() },
+      payload: {
+        targetUserId: row.userId,
+        expiresAt: row.expiresAt.toISOString(),
+        supersededInvitationIds: superseded.map(({ id }) => id),
+      },
     });
     return Object.freeze({ invitation: toInvitation(row), token });
   };
@@ -258,6 +282,7 @@ export function consumeInvitation(
           eq(invitations.userId, userId),
           eq(invitations.tokenHash, hashInvitationToken(token ?? "")),
           isNull(invitations.consumedAt),
+          isNull(invitations.revokedAt),
           gt(invitations.expiresAt, now),
         ),
       )

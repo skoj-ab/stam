@@ -5,13 +5,14 @@ import { recordAuditEvent } from "../audit/index.ts";
 import { ApplicationConflictError, NotFoundError } from "../errors.ts";
 import { requireGlobalAdmin, userRoles } from "./authorization.ts";
 
-export type InvitationStatus = "PENDING" | "CONSUMED" | "EXPIRED";
+export type InvitationStatus = "PENDING" | "CONSUMED" | "REVOKED" | "EXPIRED";
 
 export function invitationStatus(
-  invitation: Pick<typeof invitations.$inferSelect, "consumedAt" | "expiresAt">,
+  invitation: Pick<typeof invitations.$inferSelect, "consumedAt" | "revokedAt" | "expiresAt">,
   asOf: Date,
 ): InvitationStatus {
   if (invitation.consumedAt) return "CONSUMED";
+  if (invitation.revokedAt) return "REVOKED";
   return invitation.expiresAt.getTime() <= asOf.getTime() ? "EXPIRED" : "PENDING";
 }
 
@@ -57,6 +58,7 @@ export function listAdminDirectory(
             createdAt: invitation.createdAt,
             expiresAt: invitation.expiresAt,
             consumedAt: invitation.consumedAt,
+            revokedAt: invitation.revokedAt,
             createdBy: invitation.createdBy,
             createdByName: usersById.get(invitation.createdBy)?.name ?? invitation.createdBy,
           });

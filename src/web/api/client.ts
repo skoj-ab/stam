@@ -50,10 +50,11 @@ export type AdminDirectory = {
     email: string;
     name: string;
     roles: string[];
-    status: "PENDING" | "CONSUMED" | "EXPIRED";
+    status: "PENDING" | "CONSUMED" | "REVOKED" | "EXPIRED";
     createdAt: string;
     expiresAt: string;
     consumedAt: string | null;
+    revokedAt: string | null;
     createdBy: string;
     createdByName: string;
   }>;
@@ -69,6 +70,7 @@ export type CreatedAdminInvitation = {
     createdAt: string;
     createdBy: string;
     consumedAt: string | null;
+    revokedAt: string | null;
   };
   token: string;
   acceptanceUrl: string;

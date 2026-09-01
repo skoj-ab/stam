@@ -945,6 +945,12 @@ describe("HTTP application composition", () => {
         body: { email: "invitee@example.com", name: "Invited User" },
       });
       expect(recovery.status).toBe(201);
+      const originalInvitation = database.db
+        .select()
+        .from(invitations)
+        .where(eq(invitations.id, result.invitation.id))
+        .get();
+      expect(originalInvitation?.revokedAt).toBeInstanceOf(Date);
       expect(
         listAuditEvents(database).filter(({ type }) => type === "INVITATION_CREATED"),
       ).toHaveLength(2);
@@ -970,6 +976,8 @@ describe("HTTP application composition", () => {
       const pending = await createInvitationThroughApi(users.admin, "pending@example.com");
       const expired = await createInvitationThroughApi(users.admin, "expired@example.com");
       const consumed = await createInvitationThroughApi(users.admin, "consumed@example.com");
+      const revoked = await createInvitationThroughApi(users.admin, "revoked@example.com");
+      await createInvitationThroughApi(users.admin, "revoked@example.com");
       database.db
         .update(invitations)
         .set({ expiresAt: new Date(Date.now() - 1_000) })
@@ -1005,6 +1013,7 @@ describe("HTTP application composition", () => {
           expect.objectContaining({ id: pending.id, status: "PENDING", roles: ["user"] }),
           expect.objectContaining({ id: expired.id, status: "EXPIRED", roles: ["user"] }),
           expect.objectContaining({ id: consumed.id, status: "CONSUMED", roles: ["user"] }),
+          expect.objectContaining({ id: revoked.id, status: "REVOKED", roles: ["user"] }),
         ]),
       );
       const serialized = JSON.stringify(directory);

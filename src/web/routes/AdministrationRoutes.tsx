@@ -54,6 +54,7 @@ function rolesLabel(roles: readonly string[]): string {
 function invitationBadge(status: AdminDirectory["invitations"][number]["status"]) {
   if (status === "PENDING") return <Badge tone="caution">Väntar</Badge>;
   if (status === "CONSUMED") return <Badge tone="positive">Accepterad</Badge>;
+  if (status === "REVOKED") return <Badge>Ersatt</Badge>;
   return <Badge tone="critical">Utgången</Badge>;
 }
 

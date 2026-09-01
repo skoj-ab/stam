@@ -152,6 +152,7 @@ export const invitations = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     consumedAt: integer("consumed_at", { mode: "timestamp_ms" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     uniqueIndex("invitations_token_hash_unique").on(table.tokenHash),

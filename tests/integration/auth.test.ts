@@ -258,6 +258,24 @@ describe("opaque invitations", () => {
         () => resolveInvitation(database, "not-an-invitation"),
         INVITATION_ERROR_CODES.invalid,
       );
+
+      const firstRecovery = createInvitation(database, {
+        userId: wrongUser.id,
+        email: wrongUser.email,
+        name: wrongUser.name,
+        createdBy: admin.id,
+      });
+      const replacement = createInvitation(database, {
+        userId: wrongUser.id,
+        email: wrongUser.email,
+        name: wrongUser.name,
+        createdBy: admin.id,
+      });
+      expectInvitationCode(
+        () => resolveInvitation(database, firstRecovery.token),
+        INVITATION_ERROR_CODES.revoked,
+      );
+      expect(resolveInvitation(database, replacement.token).id).toBe(replacement.invitation.id);
     });
   });
 
