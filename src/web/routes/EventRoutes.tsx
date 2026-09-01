@@ -410,6 +410,69 @@ function EventActionLinks({ basePath, hasOpening }: { basePath: string; hasOpeni
   );
 }
 
+function EventHistoryTable({
+  data,
+  events,
+  corrected,
+  correctionEventIds,
+  basePath,
+  canWrite,
+}: {
+  data: EventRouteData;
+  events: readonly ShareRegisterEvent[];
+  corrected: ReadonlySet<string>;
+  correctionEventIds: ReadonlySet<string>;
+  basePath: string;
+  canWrite: boolean;
+}) {
+  return (
+    <Table caption="Oföränderlig händelsehistorik i sekvensordning" density="compact">
+      <TableHead>
+        <TableRow>
+          <TableHeaderCell numeric>Sekvens</TableHeaderCell>
+          <TableHeaderCell>Typ</TableHeaderCell>
+          <TableHeaderCell>Verkningsdatum</TableHeaderCell>
+          <TableHeaderCell>Registrerad</TableHeaderCell>
+          <TableHeaderCell>Innehåll</TableHeaderCell>
+          {canWrite ? <TableHeaderCell>Rättelse</TableHeaderCell> : null}
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {events.map((event) => (
+          <TableRow key={event.id}>
+            <TableCell numeric header>
+              {formatCount(event.sequence)}
+            </TableCell>
+            <TableCell>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone={event.type === "EVENT_REVERSED" ? "caution" : "neutral"}>
+                  {EVENT_TYPE_LABELS[event.type]}
+                </Badge>
+                {corrected.has(event.id) ? <Badge tone="critical">Rättad</Badge> : null}
+              </div>
+            </TableCell>
+            <TableCell>{formatDate(event.effectiveDate)}</TableCell>
+            <TableCell muted>{formatTimestamp(event.registeredAt)}</TableCell>
+            <TableCell>{eventSummary(event, data)}</TableCell>
+            {canWrite ? (
+              <TableCell>
+                {correctionEventIds.has(event.id) ? (
+                  <Link
+                    className="text-accent-ink underline underline-offset-2"
+                    to={`${basePath}/correction?target=${encodeURIComponent(event.id)}`}
+                  >
+                    Rätta händelse
+                  </Link>
+                ) : null}
+              </TableCell>
+            ) : null}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function EventHistoryRoute() {
   const data = useLoaderData() as EventRouteData;
   const { canWrite } = useApplicationAccess();
@@ -468,50 +531,14 @@ export function EventHistoryRoute() {
               }
             />
           ) : (
-            <Table caption="Oföränderlig händelsehistorik i sekvensordning" density="compact">
-              <TableHead>
-                <TableRow>
-                  <TableHeaderCell numeric>Sekvens</TableHeaderCell>
-                  <TableHeaderCell>Typ</TableHeaderCell>
-                  <TableHeaderCell>Verkningsdatum</TableHeaderCell>
-                  <TableHeaderCell>Registrerad</TableHeaderCell>
-                  <TableHeaderCell>Innehåll</TableHeaderCell>
-                  {canWrite ? <TableHeaderCell>Rättelse</TableHeaderCell> : null}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {events.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell numeric header>
-                      {formatCount(event.sequence)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge tone={event.type === "EVENT_REVERSED" ? "caution" : "neutral"}>
-                          {EVENT_TYPE_LABELS[event.type]}
-                        </Badge>
-                        {corrected.has(event.id) ? <Badge tone="critical">Rättad</Badge> : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatDate(event.effectiveDate)}</TableCell>
-                    <TableCell muted>{formatTimestamp(event.registeredAt)}</TableCell>
-                    <TableCell>{eventSummary(event, data)}</TableCell>
-                    {canWrite ? (
-                      <TableCell>
-                        {correctionEventIds.has(event.id) ? (
-                          <Link
-                            className="text-accent-ink underline underline-offset-2"
-                            to={`${basePath}/correction?target=${encodeURIComponent(event.id)}`}
-                          >
-                            Rätta händelse
-                          </Link>
-                        ) : null}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <EventHistoryTable
+              data={data}
+              events={events}
+              corrected={corrected}
+              correctionEventIds={correctionEventIds}
+              basePath={basePath}
+              canWrite={canWrite}
+            />
           )}
         </PageSection>
       </PageBody>
