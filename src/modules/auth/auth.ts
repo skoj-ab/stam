@@ -53,6 +53,10 @@ export function createAuth(database: DatabaseContext, environment: Environment) 
       passkey({
         rpID: environment.WEBAUTHN_RP_ID,
         origin: environment.PUBLIC_ORIGIN,
+        authenticatorSelection: {
+          residentKey: "required",
+          requireResidentKey: true,
+        },
         registration: {
           requireSession: false,
           resolveUser: ({ context }) => {

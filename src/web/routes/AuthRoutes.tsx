@@ -174,22 +174,58 @@ export function AcceptInvitationRoute() {
   const navigate = useNavigate();
   const token = query.get("token");
   const [name, setName] = useState("Min passkey");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [error, setError] = useState<string>();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"passkey" | "password">();
 
   if (!token) return <Navigate to="/login" replace />;
+  const invitationToken = token;
 
-  async function accept() {
-    setLoading(true);
+  function invitationError(code: string | undefined): string {
+    if (code === "EXPIRED_INVITATION") return "Inbjudan har gått ut.";
+    if (code === "CONSUMED_INVITATION") return "Inbjudan har redan använts.";
+    if (code === "REVOKED_INVITATION") return "Inbjudan har ersatts av en nyare länk.";
+    if (code === "CREDENTIAL_ACCOUNT_EXISTS") {
+      return "Kontot har redan ett lösenord. Logga in med det befintliga lösenordet.";
+    }
+    if (code === "PASSWORD_TOO_SHORT") return "Lösenordet måste innehålla minst 8 tecken.";
+    if (code === "PASSWORD_TOO_LONG") return "Lösenordet får innehålla högst 128 tecken.";
+    return "Inbjudan kunde inte användas.";
+  }
+
+  async function acceptWithPasskey() {
+    setLoading("passkey");
     setError(undefined);
     const result = await authClient.passkey.addPasskey({
       name,
-      context: token,
+      context: invitationToken,
       createSession: true,
     });
-    setLoading(false);
+    setLoading(undefined);
     if (result?.error) {
-      setError(result.error.message ?? "Inbjudan kunde inte användas.");
+      setError(invitationError("code" in result.error ? result.error.code : undefined));
+      return;
+    }
+    navigate("/", { replace: true });
+  }
+
+  async function acceptWithPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(undefined);
+    if (password !== passwordConfirmation) {
+      setError("Lösenorden stämmer inte överens.");
+      return;
+    }
+
+    setLoading("password");
+    const result = await authClient.invitation.acceptPassword({
+      token: invitationToken,
+      newPassword: password,
+    });
+    setLoading(undefined);
+    if (result.error) {
+      setError(invitationError(result.error.code));
       return;
     }
     navigate("/", { replace: true });
@@ -198,10 +234,10 @@ export function AcceptInvitationRoute() {
   return (
     <AppShell>
       <div className="mx-auto max-w-form">
-        <PageHeader title="Acceptera inbjudan" meta="Registrera en passkey för ditt konto" />
+        <PageHeader title="Acceptera inbjudan" meta="Välj hur du vill logga in" />
         <PageBody width="form">
           {error ? <Callout tone="critical">{error}</Callout> : null}
-          <Panel>
+          <Panel title="Passkey · rekommenderas">
             <div className="flex flex-col gap-4">
               <Field label="Namn på passkey" required>
                 <Input value={name} onChange={(event) => setName(event.target.value)} required />
@@ -212,14 +248,48 @@ export function AcceptInvitationRoute() {
               <FormActions align="start">
                 <Button
                   variant="primary"
-                  onClick={accept}
-                  loading={loading}
-                  disabled={!name.trim()}
+                  onClick={acceptWithPasskey}
+                  loading={loading === "passkey"}
+                  disabled={!name.trim() || Boolean(loading)}
                 >
                   Registrera passkey
                 </Button>
               </FormActions>
             </div>
+          </Panel>
+          <Panel title="Lösenord">
+            <form className="flex flex-col gap-4" onSubmit={acceptWithPassword}>
+              <p className="text-sm text-ink-muted">
+                Använd lösenord om du inte kan skapa en passkey på den här enheten.
+              </p>
+              <Field label="Lösenord" description="Minst 8 och högst 128 tecken." required>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={8}
+                  maxLength={128}
+                  required
+                />
+              </Field>
+              <Field label="Bekräfta lösenord" required>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordConfirmation}
+                  onChange={(event) => setPasswordConfirmation(event.target.value)}
+                  minLength={8}
+                  maxLength={128}
+                  required
+                />
+              </Field>
+              <FormActions align="start">
+                <Button type="submit" loading={loading === "password"} disabled={Boolean(loading)}>
+                  Fortsätt med lösenord
+                </Button>
+              </FormActions>
+            </form>
           </Panel>
         </PageBody>
       </div>
