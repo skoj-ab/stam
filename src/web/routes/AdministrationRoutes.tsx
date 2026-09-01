@@ -21,6 +21,7 @@ import {
   formatTimestamp,
   Input,
   Panel,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -36,6 +37,15 @@ type ApiKeySummary = Pick<
 >;
 
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
+
+const INVITATION_DURATION_OPTIONS = [
+  { value: "15", label: "15 minuter" },
+  { value: "60", label: "1 timme" },
+  { value: "480", label: "8 timmar" },
+  { value: "1440", label: "24 timmar" },
+] as const;
+
+type InvitationDuration = (typeof INVITATION_DURATION_OPTIONS)[number]["value"];
 
 function rolesLabel(roles: readonly string[]): string {
   return roles.map((role) => (role === "admin" ? "Administratör" : "Användare")).join(", ");
@@ -55,6 +65,7 @@ function InvitationForm() {
   const revalidator = useRevalidator();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [duration, setDuration] = useState<InvitationDuration>("15");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [acceptanceUrl, setAcceptanceUrl] = useState<string>();
@@ -65,7 +76,15 @@ function InvitationForm() {
     setError(undefined);
     setAcceptanceUrl(undefined);
     try {
-      const created = await createAdminInvitation({ name, email });
+      const durationMinutes = Number(duration);
+      const created = await createAdminInvitation({
+        name,
+        email,
+        expiresAt:
+          duration === "15"
+            ? undefined
+            : new Date(Date.now() + durationMinutes * 60 * 1000).toISOString(),
+      });
       setAcceptanceUrl(created.acceptanceUrl);
       setName("");
       setEmail("");
@@ -102,6 +121,16 @@ function InvitationForm() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Giltighetstid" required>
+          <Select
+            options={INVITATION_DURATION_OPTIONS}
+            value={duration}
+            onValueChange={(value) => {
+              if (value) setDuration(value);
+            }}
             required
           />
         </Field>
@@ -248,7 +277,7 @@ export function AdminDirectoryRoute() {
       <PageBody>
         <PageSection
           title="Bjud in användare"
-          description="Inbjudningslänken visas bara när den skapas och gäller i 15 minuter."
+          description="Inbjudningslänken visas bara när den skapas. Välj hur länge den ska gälla."
         >
           <InvitationForm />
         </PageSection>

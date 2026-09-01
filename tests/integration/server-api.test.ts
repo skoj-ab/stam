@@ -892,6 +892,21 @@ describe("HTTP application composition", () => {
         database.db.select().from(user).where(eq(user.email, "blocked@example.com")).get(),
       ).toBe(undefined);
 
+      const overlong = await request(app, "/api/admin/invitations", {
+        method: "POST",
+        cookie: users.admin.cookie,
+        body: {
+          email: "overlong@example.com",
+          name: "Overlong User",
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000 + 60_000).toISOString(),
+        },
+      });
+      expect(overlong.status).toBe(400);
+      expect(await overlong.json()).toMatchObject({ code: "INVALID_INVITATION_EXPIRY" });
+      expect(
+        database.db.select().from(user).where(eq(user.email, "overlong@example.com")).get(),
+      ).toBe(undefined);
+
       const response = await request(app, "/api/admin/invitations", {
         method: "POST",
         cookie: users.admin.cookie,

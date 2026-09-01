@@ -8,6 +8,7 @@ import { recordAuditEvent } from "../audit/index.ts";
 import { requireGlobalAdmin } from "./authorization.ts";
 
 export const DEFAULT_INVITATION_TTL_MS = 15 * 60 * 1000;
+export const MAX_INVITATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email());
 const nonemptyStringSchema = z.string().trim().min(1);
@@ -120,6 +121,12 @@ function getExpiry(expiresAt: Date | undefined, createdAt: Date): Date {
       message: "Invitation expiry must be in the future",
     });
   }
+  if (resolved.getTime() - createdAt.getTime() > MAX_INVITATION_TTL_MS) {
+    throw APIError.from("BAD_REQUEST", {
+      code: "INVALID_INVITATION_EXPIRY",
+      message: "Invitation expiry cannot be more than 24 hours in the future",
+    });
+  }
   return resolved;
 }
 
@@ -191,6 +198,8 @@ export async function createAdminInvitation(
 ): Promise<CreatedInvitation> {
   const values = adminInvitationInputSchema.parse(input);
   requireGlobalAdmin(database, createdBy);
+  const requestedExpiry = values.expiresAt ? new Date(values.expiresAt) : undefined;
+  if (requestedExpiry) getExpiry(requestedExpiry, new Date());
 
   const existing = database.db.select().from(user).where(eq(user.email, values.email)).get();
   if (existing && existing.name !== values.name) {
@@ -213,7 +222,7 @@ export async function createAdminInvitation(
     email: values.email,
     name: values.name,
     createdBy,
-    expiresAt: values.expiresAt ? new Date(values.expiresAt) : undefined,
+    expiresAt: requestedExpiry,
   });
 }
 

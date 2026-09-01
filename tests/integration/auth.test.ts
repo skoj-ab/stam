@@ -14,9 +14,11 @@ import {
   consumeInvitation,
   createAuth,
   createInvitation,
+  DEFAULT_INVITATION_TTL_MS,
   finishPasskeyRegistration,
   hashInvitationToken,
   INVITATION_ERROR_CODES,
+  MAX_INVITATION_TTL_MS,
   resolveInvitation,
 } from "../../src/modules/auth/index.ts";
 
@@ -224,6 +226,9 @@ describe("opaque invitations", () => {
       });
       expect(created.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(created.invitation.email).toBe("invitee@example.com");
+      expect(created.invitation.expiresAt.getTime() - created.invitation.createdAt.getTime()).toBe(
+        DEFAULT_INVITATION_TTL_MS,
+      );
 
       const stored = database.db
         .select()
@@ -307,6 +312,29 @@ describe("opaque invitations", () => {
       );
       expect(missingContext.status).toBe(400);
       expect(await missingContext.json()).toMatchObject({ code: INVITATION_ERROR_CODES.invalid });
+    });
+  });
+
+  test("rejects invitation lifetimes longer than 24 hours", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "long-lived@example.com", name: "Long Lived User" },
+        })
+      ).user;
+
+      expectInvitationCode(
+        () =>
+          createInvitation(database, {
+            userId: invitee.id,
+            email: invitee.email,
+            name: invitee.name,
+            createdBy: admin.id,
+            expiresAt: new Date(Date.now() + MAX_INVITATION_TTL_MS + 60_000),
+          }),
+        "INVALID_INVITATION_EXPIRY",
+      );
     });
   });
 
