@@ -54,6 +54,7 @@ import {
   TableRow,
   Textarea,
 } from "../ui";
+import { useApplicationAccess } from "./ApplicationLayoutRoute";
 import {
   STRUCTURAL_EVENT_FORM_TYPES,
   type StructuralEventFormType,
@@ -411,6 +412,7 @@ function EventActionLinks({ basePath, hasOpening }: { basePath: string; hasOpeni
 
 export function EventHistoryRoute() {
   const data = useLoaderData() as EventRouteData;
+  const { canWrite } = useApplicationAccess();
   const events = [...data.events].sort((left, right) => left.sequence - right.sequence);
   const corrected = correctedTargetIds(events);
   const correctionEventIds = new Set(correctionCandidates(events).map((event) => event.id));
@@ -423,23 +425,27 @@ export function EventHistoryRoute() {
         title="Händelser"
         meta={`${data.company.legalName} · ${formatCount(events.length)} registrerade händelser`}
         actions={
-          <Link
-            className={linkButtonClass("primary")}
-            to={`${basePath}/${hasOpening ? "issuance" : "opening"}`}
-          >
-            <PlusIcon /> {hasOpening ? "Ny händelse" : "Importera öppningsbalans"}
-          </Link>
+          canWrite ? (
+            <Link
+              className={linkButtonClass("primary")}
+              to={`${basePath}/${hasOpening ? "issuance" : "opening"}`}
+            >
+              <PlusIcon /> {hasOpening ? "Ny händelse" : "Importera öppningsbalans"}
+            </Link>
+          ) : undefined
         }
       />
       <PageBody>
-        <PageSection
-          title="Registrera händelse"
-          description="Alla ändringar förhandsgranskas av servern innan de registreras."
-        >
-          <Panel>
-            <EventActionLinks basePath={basePath} hasOpening={hasOpening} />
-          </Panel>
-        </PageSection>
+        {canWrite ? (
+          <PageSection
+            title="Registrera händelse"
+            description="Alla ändringar förhandsgranskas av servern innan de registreras."
+          >
+            <Panel>
+              <EventActionLinks basePath={basePath} hasOpening={hasOpening} />
+            </Panel>
+          </PageSection>
+        ) : null}
 
         <PageSection
           title="Händelsehistorik"
@@ -448,11 +454,17 @@ export function EventHistoryRoute() {
           {events.length === 0 ? (
             <EmptyState
               title="Inga händelser registrerade"
-              description="Importera en verifierad öppningsbalans för att börja föra aktieboken."
+              description={
+                canWrite
+                  ? "Importera en verifierad öppningsbalans för att börja föra aktieboken."
+                  : "Det finns inga händelser att visa."
+              }
               action={
-                <Link className={linkButtonClass("primary")} to={`${basePath}/opening`}>
-                  Importera öppningsbalans
-                </Link>
+                canWrite ? (
+                  <Link className={linkButtonClass("primary")} to={`${basePath}/opening`}>
+                    Importera öppningsbalans
+                  </Link>
+                ) : undefined
               }
             />
           ) : (
@@ -464,7 +476,7 @@ export function EventHistoryRoute() {
                   <TableHeaderCell>Verkningsdatum</TableHeaderCell>
                   <TableHeaderCell>Registrerad</TableHeaderCell>
                   <TableHeaderCell>Innehåll</TableHeaderCell>
-                  <TableHeaderCell>Rättelse</TableHeaderCell>
+                  {canWrite ? <TableHeaderCell>Rättelse</TableHeaderCell> : null}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -484,16 +496,18 @@ export function EventHistoryRoute() {
                     <TableCell>{formatDate(event.effectiveDate)}</TableCell>
                     <TableCell muted>{formatTimestamp(event.registeredAt)}</TableCell>
                     <TableCell>{eventSummary(event, data)}</TableCell>
-                    <TableCell>
-                      {correctionEventIds.has(event.id) ? (
-                        <Link
-                          className="text-accent-ink underline underline-offset-2"
-                          to={`${basePath}/correction?target=${encodeURIComponent(event.id)}`}
-                        >
-                          Rätta händelse
-                        </Link>
-                      ) : null}
-                    </TableCell>
+                    {canWrite ? (
+                      <TableCell>
+                        {correctionEventIds.has(event.id) ? (
+                          <Link
+                            className="text-accent-ink underline underline-offset-2"
+                            to={`${basePath}/correction?target=${encodeURIComponent(event.id)}`}
+                          >
+                            Rätta händelse
+                          </Link>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

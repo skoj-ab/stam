@@ -31,6 +31,7 @@ import {
   TableRow,
   Textarea,
 } from "../ui";
+import { useApplicationAccess } from "./ApplicationLayoutRoute";
 
 type ApiKeySummary = Pick<
   ApiKey,
@@ -337,6 +338,7 @@ export async function apiKeysLoader(): Promise<ApiKeySummary[]> {
 
 export function ApiKeysRoute() {
   const loadedKeys = useLoaderData() as ApiKeySummary[];
+  const { isReadOnly } = useApplicationAccess();
   const [keys, setKeys] = useState(loadedKeys);
   const [name, setName] = useState("");
   const [revealedKey, setRevealedKey] = useState<string>();
@@ -384,7 +386,14 @@ export function ApiKeysRoute() {
 
   return (
     <>
-      <PageHeader title="API-nycklar" meta="Maskinåtkomst med samma behörighet som ditt konto" />
+      <PageHeader
+        title="API-nycklar"
+        meta={
+          isReadOnly
+            ? "Maskinåtkomst med samma läsbehörighet som ditt konto"
+            : "Maskinåtkomst med samma behörighet som ditt konto"
+        }
+      />
       <PageBody>
         <PageSection
           title="Skapa API-nyckel"

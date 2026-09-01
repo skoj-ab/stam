@@ -43,6 +43,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../ui";
+import { useApplicationAccess } from "./ApplicationLayoutRoute";
 
 function requireCompanyId(companyId: string | undefined): string {
   if (!companyId?.trim()) {
@@ -182,6 +183,7 @@ export async function shareholdersLoader({ params }: LoaderFunctionArgs) {
 
 export function ShareholdersRoute() {
   const { company, shareholders, snapshot } = useLoaderData<typeof shareholdersLoader>();
+  const { canWrite } = useApplicationAccess();
   const createPath = `/companies/${company.id}/shareholders/new`;
   const currentDetails = new Map(
     snapshot.shareholderDetails.map(({ shareholderId, details }) => [shareholderId, details]),
@@ -193,9 +195,11 @@ export function ShareholdersRoute() {
         title="Aktieägare"
         meta={`${company.legalName} · ${shareholders.length} registrerade aktieägare`}
         actions={
-          <Link className={linkButtonClass("primary")} to={createPath}>
-            <PlusIcon /> Lägg till aktieägare
-          </Link>
+          canWrite ? (
+            <Link className={linkButtonClass("primary")} to={createPath}>
+              <PlusIcon /> Lägg till aktieägare
+            </Link>
+          ) : undefined
         }
       />
       <PageBody>
@@ -203,11 +207,17 @@ export function ShareholdersRoute() {
           {shareholders.length === 0 ? (
             <EmptyState
               title="Inga aktieägare registrerade"
-              description="Lägg till den första aktieägaren innan aktier registreras."
+              description={
+                canWrite
+                  ? "Lägg till den första aktieägaren innan aktier registreras."
+                  : "Det finns inga aktieägare att visa."
+              }
               action={
-                <Link className={linkButtonClass("primary")} to={createPath}>
-                  Lägg till aktieägare
-                </Link>
+                canWrite ? (
+                  <Link className={linkButtonClass("primary")} to={createPath}>
+                    Lägg till aktieägare
+                  </Link>
+                ) : undefined
               }
             />
           ) : (
@@ -220,7 +230,7 @@ export function ShareholdersRoute() {
                   <TableHeaderCell>Adress</TableHeaderCell>
                   <TableHeaderCell>Kontakt</TableHeaderCell>
                   <TableHeaderCell>Gäller från</TableHeaderCell>
-                  <TableHeaderCell>Åtgärd</TableHeaderCell>
+                  {canWrite ? <TableHeaderCell>Åtgärd</TableHeaderCell> : null}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -247,14 +257,16 @@ export function ShareholdersRoute() {
                         </div>
                       </TableCell>
                       <TableCell>{formatDate(shareholder.effectiveFrom)}</TableCell>
-                      <TableCell>
-                        <Link
-                          className="text-accent-ink underline underline-offset-2"
-                          to={`/companies/${company.id}/shareholders/${shareholder.id}/edit`}
-                        >
-                          Ändra uppgifter
-                        </Link>
-                      </TableCell>
+                      {canWrite ? (
+                        <TableCell>
+                          <Link
+                            className="text-accent-ink underline underline-offset-2"
+                            to={`/companies/${company.id}/shareholders/${shareholder.id}/edit`}
+                          >
+                            Ändra uppgifter
+                          </Link>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   );
                 })}
@@ -589,6 +601,7 @@ export async function shareClassesLoader({ params }: LoaderFunctionArgs) {
 
 export function ShareClassesRoute() {
   const { company, shareClasses } = useLoaderData<typeof shareClassesLoader>();
+  const { canWrite } = useApplicationAccess();
   const createPath = `/companies/${company.id}/share-classes/new`;
 
   return (
@@ -597,9 +610,11 @@ export function ShareClassesRoute() {
         title="Aktieslag"
         meta={`${company.legalName} · ${shareClasses.length} registrerade aktieslag`}
         actions={
-          <Link className={linkButtonClass("primary")} to={createPath}>
-            <PlusIcon /> Lägg till aktieslag
-          </Link>
+          canWrite ? (
+            <Link className={linkButtonClass("primary")} to={createPath}>
+              <PlusIcon /> Lägg till aktieslag
+            </Link>
+          ) : undefined
         }
       />
       <PageBody>
@@ -607,11 +622,17 @@ export function ShareClassesRoute() {
           {shareClasses.length === 0 ? (
             <EmptyState
               title="Inga aktieslag registrerade"
-              description="Lägg till det första aktieslaget innan aktier registreras."
+              description={
+                canWrite
+                  ? "Lägg till det första aktieslaget innan aktier registreras."
+                  : "Det finns inga aktieslag att visa."
+              }
               action={
-                <Link className={linkButtonClass("primary")} to={createPath}>
-                  Lägg till aktieslag
-                </Link>
+                canWrite ? (
+                  <Link className={linkButtonClass("primary")} to={createPath}>
+                    Lägg till aktieslag
+                  </Link>
+                ) : undefined
               }
             />
           ) : (

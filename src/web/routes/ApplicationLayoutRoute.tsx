@@ -13,6 +13,12 @@ import {
 import { formatCompanyRegistrationIdentifier } from "../../domain/swedish-identifiers";
 import { authClient } from "../../modules/auth/client";
 import {
+  canWriteApplicationData,
+  isGlobalAdmin,
+  isReadOnly,
+  userRoles,
+} from "../../modules/auth/roles";
+import {
   type Company,
   errorMessage,
   getSession,
@@ -50,12 +56,15 @@ function CompanyMasthead({
   companies,
   selectedCompanyId,
   navigate,
+  canWrite,
 }: {
   companies: Company[];
   selectedCompanyId?: string;
   navigate: (path: string) => void;
+  canWrite: boolean;
 }) {
   if (companies.length === 0) {
+    if (!canWrite) return <span className="text-sm text-ink-muted">Inga bolag</span>;
     return (
       <Link className="text-sm text-accent-ink underline underline-offset-2" to="/companies/new">
         Lägg till bolag
@@ -63,18 +72,23 @@ function CompanyMasthead({
     );
   }
 
-  const options = [
+  const companyOptions = [
     ...companies.map((company) => ({
       value: company.id,
       label: company.legalName,
       description: formatCompanyRegistrationIdentifier(company),
     })),
-    {
-      value: ADD_COMPANY_VALUE,
-      label: "Lägg till bolag",
-      description: "Skapa ett nytt bolag",
-    },
   ];
+  const options = canWrite
+    ? [
+        ...companyOptions,
+        {
+          value: ADD_COMPANY_VALUE,
+          label: "Lägg till bolag",
+          description: "Skapa ett nytt bolag",
+        },
+      ]
+    : companyOptions;
 
   return (
     <Select
@@ -219,12 +233,39 @@ export function useApplicationData(): ApplicationData {
   return data;
 }
 
+export function useApplicationAccess() {
+  const roles = userRoles(useApplicationData().session.user.role);
+  return {
+    roles,
+    isAdmin: isGlobalAdmin(roles),
+    isReadOnly: isReadOnly(roles),
+    canWrite: canWriteApplicationData(roles),
+  } as const;
+}
+
+export function RequireApplicationWriteAccess() {
+  const { canWrite } = useApplicationAccess();
+  if (canWrite) return <Outlet />;
+  return (
+    <>
+      <PageHeader title="Skrivbehörighet krävs" />
+      <PageBody width="prose">
+        <Callout tone="critical" title="Sidan är inte tillgänglig">
+          Ditt konto har endast läsbehörighet och kan inte registrera ändringar.
+        </Callout>
+      </PageBody>
+    </>
+  );
+}
+
 export function ApplicationLayoutRoute() {
   const data = useLoaderData() as ApplicationData;
   const { companyId } = useParams();
   const navigate = useNavigate();
   const selectedCompany = data.companies.find((company) => company.id === companyId);
-  const isAdmin = data.session.user.role?.split(",").includes("admin") ?? false;
+  const roles = userRoles(data.session.user.role);
+  const isAdmin = isGlobalAdmin(roles);
+  const canWrite = canWriteApplicationData(roles);
 
   return (
     <AppShell
@@ -233,6 +274,7 @@ export function ApplicationLayoutRoute() {
           companies={data.companies}
           selectedCompanyId={selectedCompany?.id}
           navigate={navigate}
+          canWrite={canWrite}
         />
       }
       account={<AccountMenu userName={data.session.user.name} isAdmin={isAdmin} />}

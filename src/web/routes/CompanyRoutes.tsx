@@ -22,19 +22,22 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../ui";
-import { useApplicationData } from "./ApplicationLayoutRoute";
+import { useApplicationAccess, useApplicationData } from "./ApplicationLayoutRoute";
 
 export function CompaniesRoute() {
   const { companies } = useApplicationData();
+  const { canWrite } = useApplicationAccess();
   return (
     <>
       <PageHeader
         title="Bolag"
         meta={`${companies.length} registrerade bolag`}
         actions={
-          <Link className={linkButtonClass("primary")} to="/companies/new">
-            <PlusIcon /> Lägg till bolag
-          </Link>
+          canWrite ? (
+            <Link className={linkButtonClass("primary")} to="/companies/new">
+              <PlusIcon /> Lägg till bolag
+            </Link>
+          ) : undefined
         }
       />
       <PageBody>
@@ -42,11 +45,17 @@ export function CompaniesRoute() {
           {companies.length === 0 ? (
             <EmptyState
               title="Inga bolag ännu"
-              description="Lägg till det första bolaget för att börja bygga aktieboken."
+              description={
+                canWrite
+                  ? "Lägg till det första bolaget för att börja bygga aktieboken."
+                  : "Det finns inget bolag att visa."
+              }
               action={
-                <Link className={linkButtonClass("primary")} to="/companies/new">
-                  Lägg till bolag
-                </Link>
+                canWrite ? (
+                  <Link className={linkButtonClass("primary")} to="/companies/new">
+                    Lägg till bolag
+                  </Link>
+                ) : undefined
               }
             />
           ) : (
@@ -171,11 +180,11 @@ export function CreateCompanyRoute() {
 
 export function CompanySettingsRoute() {
   const { companyId } = useParams();
-  const { companies, session } = useApplicationData();
+  const { companies } = useApplicationData();
+  const { isAdmin } = useApplicationAccess();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const company = companies.find(({ id }) => id === companyId);
-  const isAdmin = session.user.role?.split(",").includes("admin") ?? false;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string>();

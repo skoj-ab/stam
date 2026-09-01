@@ -10,6 +10,7 @@ import {
   ApplicationLayoutRoute,
   applicationLoader,
   NotFoundRoute,
+  RequireApplicationWriteAccess,
   RouteError,
 } from "./routes/ApplicationLayoutRoute";
 import {
@@ -85,9 +86,6 @@ const router = createBrowserRouter([
         element: <ApiKeysRoute />,
       },
       { path: "companies", element: <CompaniesRoute /> },
-      { path: "companies/new", element: <CreateCompanyRoute /> },
-      { path: "companies/new/fortnox", element: <FortnoxImportRoute /> },
-      { path: "companies/new/ocf", element: <OcfImportRoute /> },
       {
         path: "companies/:companyId/register",
         loader: currentRegisterLoader,
@@ -109,24 +107,9 @@ const router = createBrowserRouter([
         element: <EventHistoryRoute />,
       },
       {
-        path: "companies/:companyId/events/:eventType",
-        loader: eventFormLoader,
-        element: <EventFormRoute />,
-      },
-      {
         path: "companies/:companyId/shareholders",
         loader: shareholdersLoader,
         element: <ShareholdersRoute />,
-      },
-      {
-        path: "companies/:companyId/shareholders/new",
-        loader: createShareholderLoader,
-        element: <CreateShareholderRoute />,
-      },
-      {
-        path: "companies/:companyId/shareholders/:shareholderId/edit",
-        loader: editShareholderLoader,
-        element: <EditShareholderRoute />,
       },
       {
         path: "companies/:companyId/share-classes",
@@ -134,8 +117,31 @@ const router = createBrowserRouter([
         element: <ShareClassesRoute />,
       },
       {
-        path: "companies/:companyId/share-classes/new",
-        element: <CreateShareClassRoute />,
+        element: <RequireApplicationWriteAccess />,
+        children: [
+          { path: "companies/new", element: <CreateCompanyRoute /> },
+          { path: "companies/new/fortnox", element: <FortnoxImportRoute /> },
+          { path: "companies/new/ocf", element: <OcfImportRoute /> },
+          {
+            path: "companies/:companyId/events/:eventType",
+            loader: eventFormLoader,
+            element: <EventFormRoute />,
+          },
+          {
+            path: "companies/:companyId/shareholders/new",
+            loader: createShareholderLoader,
+            element: <CreateShareholderRoute />,
+          },
+          {
+            path: "companies/:companyId/shareholders/:shareholderId/edit",
+            loader: editShareholderLoader,
+            element: <EditShareholderRoute />,
+          },
+          {
+            path: "companies/:companyId/share-classes/new",
+            element: <CreateShareClassRoute />,
+          },
+        ],
       },
       {
         path: "companies/:companyId/settings",
