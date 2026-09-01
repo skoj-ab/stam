@@ -5,10 +5,22 @@
 The server exposes JSON under `/api`. `/api/health`, first-run setup, and the
 authentication flow are public as described below; every other application
 endpoint requires either a valid Better Auth session cookie or a user-owned API
-key. Every authenticated user can access and mutate every company except for
-permanent company removal.
+key. Every authenticated user can see every company. Global role capabilities
+are:
+
+| Role | Application access |
+| --- | --- |
+| `admin` | Read, non-writing previews, audited exports, business mutations, and administration. |
+| `user` | Read, non-writing previews, audited exports, and business mutations. |
+| `readonly` | Read, non-writing previews, and audited exports. Business mutations return `403`. |
+
 Only a user whose comma-separated global `role` contains `admin` can list users
-and invitations, create invitations, or permanently remove a company.
+and invitations, create invitations, remove users, or permanently remove a
+company. A role containing either `admin` or `user` grants application write
+access; empty roles and roles containing only `readonly` or unknown values fail
+closed for writes. Read-only describes business data: authenticated reads may
+update session or API-key usage metadata, and successful exports append an audit
+event.
 
 Requests and responses use `Content-Type: application/json`. IDs are opaque
 strings. Dates are `YYYY-MM-DD`; timestamps are UTC ISO 8601 strings. Unknown
@@ -133,10 +145,11 @@ the cookie, and returns `{ "success": true }`.
 ### API-key authentication
 
 API keys are user-owned credentials. They have exactly the current application
-permissions and global role of the owning user; there are no API-specific scopes
-or company grants. A key owned by an administrator can therefore use Stam's
-application-level administrator operations. Prefer a dedicated non-admin user
-for autonomous agents that do not need those operations.
+permissions and global role of the owning user; there are no API-specific scopes,
+role snapshots, or company grants. A key owned by a read-only user can read,
+preview, and export but receives `403` for business mutations. A key owned by an
+administrator can use Stam's application-level administrator operations. Prefer
+a dedicated read-only user for autonomous agents that only inspect data.
 
 Create, list, and revoke keys from **API-nycklar** in the authenticated account
 menu. The UI creates named keys that expire after one year. Better Auth stores
@@ -158,9 +171,11 @@ Auth. Key creation, listing, and revocation require an ordinary session cookie.
 Returns `stam-agent-api-v1`, a cache-disabled machine-readable description of
 the application API. It identifies the authentication method and owning user
 role, states application conventions, and lists only operations available to
-that role. For example, administrator-only invitation and company-removal
-operations are omitted for a regular user's key. No credential secret is
-included.
+that role. The `authorization` object reports `administrator`, `readOnly`, and
+`canMutateApplicationData`. Read-only documentation includes reads, previews,
+and exports while omitting commits and administrator operations. No credential
+secret is included. Role changes affect existing keys and their documentation
+on subsequent requests.
 
 ### Passkey authentication
 
@@ -237,9 +252,15 @@ Requires a global administrator.
 {
   "email": "invitee@example.com",
   "name": "Invited User",
+  "role": "readonly",
   "expiresAt": "2026-08-28T12:15:00.000Z"
 }
 ```
+
+`role` is optional for API compatibility and accepts `user` or `readonly`; new
+users default to `user` when it is omitted. For an existing user, an omitted role
+preserves current access and an explicitly different role returns `409` with
+code `INVITATION_ROLE_MISMATCH`. Invitations cannot assign `admin`.
 
 `expiresAt` is optional, must be a future UTC timestamp without a numeric offset,
 cannot be more than 24 hours after creation, and defaults to 15 minutes after
@@ -364,6 +385,8 @@ Returns `200` with a JSON array ordered by legal name then ID.
 
 ### `POST /api/companies`
 
+Requires application write access (`user` or `admin`).
+
 ```json
 {
   "legalName": "Example AB",
@@ -406,6 +429,8 @@ audit insert fails, the complete deletion is rolled back.
 
 ### `POST /api/companies/imports/fortnox/preview`
 
+Available to read-only users and never writes application data.
+
 Validates three Fortnox exports and prepares a complete new-company bootstrap
 without writing to the database. The preferred request is `multipart/form-data`
 with the files available directly from Fortnox:
@@ -442,6 +467,8 @@ Preview IDs are provisional and no rows or audit events are written.
 
 ### `POST /api/companies/imports/fortnox`
 
+Requires application write access (`user` or `admin`).
+
 Accepts the same multipart files or extracted JSON request, parses and validates
 it again, and returns `201` with:
 
@@ -466,6 +493,8 @@ ranges are never inferred. A canonical duplicate organization number returns
 `409`; malformed or unsafe-to-map source data returns `400`.
 
 ### `POST /api/companies/imports/ocf/preview`
+
+Available to read-only users and never writes application data.
 
 Validates a parsed OCF package against the complete official stable v1.2.0
 schema bundle and analyzes the supported Swedish stock profile without writing
@@ -514,6 +543,8 @@ dropped data.
 
 ### `POST /api/companies/imports/ocf`
 
+Requires application write access (`user` or `admin`).
+
 Accepts the same body, repeats the complete analysis inside an immediate SQLite
 transaction, and creates a new company. A valid transaction-history import uses
 an empty OCF opening marker followed by mapped issuance, transfer, and
@@ -540,6 +571,8 @@ company are excluded. Selecting a candidate does not create a cross-company
 link; the ordinary shareholder creation endpoint stores an independent copy.
 
 ### `POST /api/companies/:companyId/shareholders`
+
+Requires application write access (`user` or `admin`).
 
 The path supplies `companyId`; a body `companyId` is overwritten by the path.
 
@@ -602,6 +635,8 @@ its independent shareholder ID, and its current projected details:
 
 ### `POST /api/companies/:companyId/shareholders/:shareholderId/details-changes/preview`
 
+Available to read-only users and never writes application data.
+
 Validates and previews one details-change event for each selected matching
 company without persisting anything:
 
@@ -630,6 +665,8 @@ contains the company summary, its shareholder ID, and the proposed event.
 
 ### `POST /api/companies/:companyId/shareholders/:shareholderId/details-changes`
 
+Requires application write access (`user` or `admin`).
+
 Accepts the same body as the preview endpoint and returns the same result shape
 with `201`. It appends one independent `SHAREHOLDER_DETAILS_CHANGED` event per
 selected company. All events have one shared `operationId` and registration
@@ -643,6 +680,8 @@ transaction. Unselected matching companies are unchanged.
 Returns all classes ordered by name then ID.
 
 ### `POST /api/companies/:companyId/share-classes`
+
+Requires application write access (`user` or `admin`).
 
 ```json
 { "name": "A", "votesPerShare": "1", "effectiveFrom": "2024-01-01" }
@@ -674,6 +713,8 @@ Returns all immutable events in company sequence order. Every returned event has
 ```
 
 ### `POST /api/companies/:companyId/events`
+
+Requires application write access (`user` or `admin`).
 
 Accepts a non-empty JSON array. The server allocates IDs, sequence, schema
 version, registration metadata, and one operation ID for the batch. Each draft is:
@@ -804,6 +845,8 @@ SQLite transaction.
 
 ### `POST /api/companies/:companyId/events/preview`
 
+Available to read-only users and never writes application data.
+
 Accepts the same non-empty draft batch and applies the same candidate
 construction, derived fields, and complete-stream validation as the append
 endpoint. Success returns `200` with the same `events` and `currentSnapshot`
@@ -859,6 +902,8 @@ from only the current projection tables.
 
 ### `GET /api/companies/:companyId/share-register/export/html`
 
+Available to read-only users. A successful export appends an audit event.
+
 Returns a downloadable Swedish HTML rendering of the share register. The
 optional `effectiveOn` and `knownAt` query parameters have the same strict format
 as the historical snapshot endpoint. Omitted values are fixed to the export
@@ -872,6 +917,8 @@ articles-of-association restriction annotations.
 
 ### `GET /api/companies/:companyId/share-register/export/pdf`
 
+Available to read-only users. A successful export appends an audit event.
+
 Accepts the same cutoffs and renders the same self-contained snapshot as a
 paginated PDF document. The PDF includes an owner overview with each owner's
 postal address, email address, phone number, total shares, ownership percentage,
@@ -883,6 +930,8 @@ IANA timezone and UTC offset. Success returns `application/pdf` with an
 attachment filename and appends a separate `EXPORT_GENERATED` audit event.
 
 ### `POST /api/companies/:companyId/share-register/export/ocf`
+
+Available to read-only users. A successful export appends an audit event.
 
 Exports a faithfully representable event history as a parsed OCF v1.2.0 package
 plus an export report:

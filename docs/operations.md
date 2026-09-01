@@ -149,7 +149,10 @@ check that the user table is empty, and refuse once the first user exists. Use
 An authenticated global administrator creates invitations with the **Användare
 och inbjudningar** page or `POST /api/admin/invitations`. The returned token is
 shown only in that response; the database stores its SHA-256 hash. The default
-lifetime is 15 minutes. The recipient uses the token as the `context` for
+lifetime is 15 minutes. Each invitation assigns either ordinary `user`
+read/write access or `readonly` access. An explicit role that differs from an
+existing user's current role is rejected rather than changing access as a side
+effect of account recovery. The recipient uses the token as the `context` for
 passkey registration, and successful verification consumes it exactly once. See
 [API](api.md#invitation-and-passkey-flow). The generated `/accept-invitation`
 URL opens the passkey-enrollment UI and establishes a session after successful
@@ -163,11 +166,13 @@ account. Immutable application and audit records keep the removed user's ID.
 
 Every authenticated user can create named, one-year API keys from the account
 menu. A key inherits the owning user's current global role and all-company
-access. Store the one-time displayed secret outside Stam, revoke unused keys,
-and use a dedicated non-admin user for agents where possible. Keys authenticate
-only Stam application endpoints through `x-api-key`; Better Auth account,
-credential, and administration endpoints remain cookie-only. `GET /api/agent`
-returns machine-readable documentation filtered to the key owner's role.
+access, including `readonly` restrictions, without storing a separate role or
+scope on the key. Store the one-time displayed secret outside Stam, revoke
+unused keys, and use a dedicated read-only user for agents that only inspect,
+preview, or export data. Keys authenticate only Stam application endpoints
+through `x-api-key`; Better Auth account, credential, and administration
+endpoints remain cookie-only. `GET /api/agent` returns machine-readable
+documentation dynamically filtered to the key owner's current role.
 
 ## Container deployment
 

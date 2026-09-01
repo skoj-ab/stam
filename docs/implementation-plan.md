@@ -22,7 +22,8 @@ Stam will support:
 
 - Multiple companies in one installation.
 - Multiple locally authenticated users.
-- Access to every company for every authenticated user.
+- Visibility of every company for every authenticated user, with global
+  read/write or read-only access.
 - An immutable history of ownership changes.
 - Current and historical share-register snapshots.
 - Individually numbered shares represented as contiguous ranges.
@@ -33,7 +34,8 @@ Stam will support:
 
 Stam will not have company memberships, tenants, organizations, permission
 matrices, or per-company roles in v1. Authentication answers who the user is;
-an authenticated session grants access to all application companies.
+an authenticated session grants visibility of all application companies, while
+the global role controls whether business changes can be registered.
 
 The initial ownership event scope is limited to:
 
@@ -422,13 +424,17 @@ The selected onboarding flow is:
 SMTP is not required; invitation URLs can be shared out of band. Email/password
 is retained only where useful for initial bootstrap or explicit recovery.
 
-Better Auth's global administrator role protects invitation and user-management
-operations only. It does not grant additional company access. All authenticated
-users can access all companies, and there will be no company-membership table.
+Better Auth recognizes global `admin`, `user`, and `readonly` roles. The
+administrator role protects invitation and user-management operations and
+permanent company removal. Both `admin` and `user` can register business
+changes. `readonly` can inspect every company, run non-writing previews, and
+create audited exports, but cannot commit business mutations. There will be no
+company-membership table.
 User-owned API keys authenticate the same application API with the owning user's
-current global role and all-company access. Keys do not introduce scopes,
-service accounts, organizations, or a second authorization model. Better Auth
-account and credential-management endpoints remain session-cookie-only.
+current global role and all-company visibility. Keys do not introduce scopes,
+service accounts, organizations, or a second authorization model, and dynamic
+agent documentation omits operations unavailable to the current role. Better
+Auth account and credential-management endpoints remain session-cookie-only.
 
 Passkeys require HTTPS outside localhost. Production configuration therefore
 needs stable `PUBLIC_ORIGIN` and `WEBAUTHN_RP_ID` values. TLS termination may be
@@ -692,8 +698,7 @@ accounting requirements have been specified and reviewed.
 - Revalidate exact statutory Swedish fields and annotations.
 - Consider a PostgreSQL adapter only if deployment requirements outgrow a
   single SQLite-backed application replica.
-- Consider global user roles beyond invitation administration only when a
-  concrete requirement exists.
+- Consider additional global roles only when a concrete requirement exists.
 
 ## Deliberate deferrals
 

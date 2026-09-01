@@ -42,7 +42,9 @@ import. OCF export is available from the current share register, while capital
 changes, splits, and complete renumbering are available under **Händelser**.
 The account menu exposes user-owned API keys, and administrators can manage
 invitations, inspect invitation status, and remove users from **Användare och
-inbjudningar**.
+inbjudningar**. Invitations assign either ordinary read/write access or
+read-only access. Read-only users can inspect, preview, and export every company,
+but the UI does not offer controls that register business changes.
 
 Useful checks:
 
@@ -118,11 +120,13 @@ on a labeled data node; see [Operations](docs/operations.md#docker-swarm).
 - [Releasing](docs/releasing.md): image tags, attestations, and release procedure.
 
 Every authenticated user can access every company. There are no tenants,
-company memberships, or per-company roles. Only global administrators can
-list or create invitations or permanently remove a company. User-owned API keys
-provide the same access as their owning user; `GET /api/agent` documents the
-operations available to the current credential. The API also supports the
-documented Swedish-stock subset of OCF v1.2.0 import and export.
+company memberships, or per-company roles. Global `user` and `admin` roles can
+register changes; `readonly` can read, run non-writing previews, and create
+audited exports. Only global administrators can list or create invitations or
+permanently remove a company. User-owned API keys provide the current access of
+their owning user; `GET /api/agent` dynamically documents only the operations
+available to the current credential. The API also supports the documented
+Swedish-stock subset of OCF v1.2.0 import and export.
 
 ## AI-assisted development
 
