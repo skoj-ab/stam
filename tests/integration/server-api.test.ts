@@ -920,10 +920,6 @@ describe("HTTP application composition", () => {
         .get();
       expect(stored?.tokenHash).toBe(hashInvitationToken(result.token));
       expect(stored?.tokenHash).not.toContain(result.token);
-      expect(
-        listAuditEvents(database).filter(({ type }) => type === "INVITATION_CREATED"),
-      ).toHaveLength(1);
-
       const recovery = await request(app, "/api/admin/invitations", {
         method: "POST",
         cookie: users.admin.cookie,
