@@ -6,6 +6,7 @@ import { type DatabaseContext, withImmediateTransaction } from "../../db/databas
 import { invitations, user } from "../../db/schema.ts";
 import { recordAuditEvent } from "../audit/index.ts";
 import { requireGlobalAdmin } from "./authorization.ts";
+import { GLOBAL_ROLES, INVITABLE_ROLES, userRoles } from "./roles.ts";
 
 export const DEFAULT_INVITATION_TTL_MS = 15 * 60 * 1000;
 export const MAX_INVITATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -27,6 +28,7 @@ export const adminInvitationInputSchema = z
   .object({
     email: emailSchema,
     name: nonemptyStringSchema,
+    role: z.enum(INVITABLE_ROLES).optional(),
     expiresAt: z.iso.datetime({ offset: false }).optional(),
   })
   .strict();
@@ -230,12 +232,25 @@ export async function createAdminInvitation(
       message: "An existing user with this email has a different name",
     });
   }
+  if (existing && values.role) {
+    const existingRoles = userRoles(existing.role);
+    if (existingRoles.length !== 1 || existingRoles[0] !== values.role) {
+      throw APIError.from("CONFLICT", {
+        code: "INVITATION_ROLE_MISMATCH",
+        message: "The requested role does not match the existing user",
+      });
+    }
+  }
 
   const target =
     existing ??
     (
       await auth.api.createUser({
-        body: { email: values.email, name: values.name },
+        body: {
+          email: values.email,
+          name: values.name,
+          role: values.role ?? GLOBAL_ROLES.user,
+        },
       })
     ).user;
 

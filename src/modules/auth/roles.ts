@@ -6,6 +6,9 @@ export const GLOBAL_ROLES = {
 
 export type GlobalRole = (typeof GLOBAL_ROLES)[keyof typeof GLOBAL_ROLES];
 
+export const INVITABLE_ROLES = [GLOBAL_ROLES.user, GLOBAL_ROLES.readonly] as const;
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
 export function userRoles(role: string | null | undefined): readonly string[] {
   return Object.freeze(
     (role ?? "")

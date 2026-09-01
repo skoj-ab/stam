@@ -2,6 +2,7 @@ import type { ApiKey } from "@better-auth/api-key/types";
 import { type FormEvent, useState } from "react";
 import { useLoaderData, useRevalidator } from "react-router";
 import { authClient } from "../../modules/auth/client";
+import { GLOBAL_ROLES, type InvitableRole } from "../../modules/auth/roles";
 import {
   type AdminDirectory,
   createAdminInvitation,
@@ -44,11 +45,22 @@ const INVITATION_DURATION_OPTIONS = [
   { value: "480", label: "8 timmar" },
   { value: "1440", label: "24 timmar" },
 ] as const;
+const INVITATION_ROLE_OPTIONS = [
+  { value: GLOBAL_ROLES.user, label: "Kan läsa och ändra" },
+  { value: GLOBAL_ROLES.readonly, label: "Endast läsning" },
+] as const;
 
 type InvitationDuration = (typeof INVITATION_DURATION_OPTIONS)[number]["value"];
 
 function rolesLabel(roles: readonly string[]): string {
-  return roles.map((role) => (role === "admin" ? "Administratör" : "Användare")).join(", ");
+  return roles
+    .map((role) => {
+      if (role === GLOBAL_ROLES.admin) return "Administratör";
+      if (role === GLOBAL_ROLES.user) return "Användare";
+      if (role === GLOBAL_ROLES.readonly) return "Endast läsning";
+      return role;
+    })
+    .join(", ");
 }
 
 function invitationBadge(status: AdminDirectory["invitations"][number]["status"]) {
@@ -66,6 +78,7 @@ function InvitationForm() {
   const revalidator = useRevalidator();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<InvitableRole>(GLOBAL_ROLES.user);
   const [duration, setDuration] = useState<InvitationDuration>("15");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
@@ -81,6 +94,7 @@ function InvitationForm() {
       const created = await createAdminInvitation({
         name,
         email,
+        role,
         expiresAt:
           duration === "15"
             ? undefined
@@ -122,6 +136,16 @@ function InvitationForm() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Behörighet" required>
+          <Select
+            options={INVITATION_ROLE_OPTIONS}
+            value={role}
+            onValueChange={(value) => {
+              if (value === GLOBAL_ROLES.user || value === GLOBAL_ROLES.readonly) setRole(value);
+            }}
             required
           />
         </Field>

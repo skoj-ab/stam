@@ -4,6 +4,7 @@ import type {
   ShareRegisterEvent,
   ShareRegisterSnapshot,
 } from "../../domain/share-register/types";
+import type { InvitableRole } from "../../modules/auth/roles";
 import type {
   OcfDryRunReport,
   OcfDryRunResult,
@@ -308,6 +309,7 @@ export function getAdminDirectory(): Promise<AdminDirectory> {
 export function createAdminInvitation(input: {
   email: string;
   name: string;
+  role: InvitableRole;
   expiresAt?: string;
 }): Promise<CreatedAdminInvitation> {
   return requestJson({
