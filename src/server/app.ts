@@ -25,6 +25,7 @@ import {
   listAdminDirectory,
   mountAuthRoutes,
   removeUser,
+  requireApplicationWrite,
   requireGlobalAdmin,
   type StamAuth,
   userRoles,
@@ -122,8 +123,10 @@ function detailsChangeHandler(
   database: DatabaseContext,
   operation: DetailsChangeOperation,
   status: 200 | 201,
+  requiresWrite: boolean,
 ) {
   return async (context: AppContext) => {
+    if (requiresWrite) requireApplicationWrite(database, context.get("authUser").id);
     const result = operation({
       database,
       anchorCompanyId: companyIdFrom(context.req.param()),
@@ -364,6 +367,7 @@ function createApplicationApi(
     );
   });
   api.post("/companies/imports/fortnox", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     const input = await parseFortnoxImportRequest(context.req.raw, (body) =>
       fortnoxImportRequestSchema.parse(body),
     );
@@ -376,12 +380,14 @@ function createApplicationApi(
     return context.json(previewOcfImport(await context.req.json()), 200);
   });
   api.post("/companies/imports/ocf", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     return context.json(
       commitOcfImport(database, await context.req.json(), context.get("authUser").id),
       201,
     );
   });
   api.post("/companies", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     const { initialShareClass, ...input } = createCompanyRequestSchema.parse(
       await context.req.json(),
     );
@@ -424,13 +430,14 @@ function createApplicationApi(
   });
   api.post(
     "/companies/:companyId/shareholders/:shareholderId/details-changes/preview",
-    detailsChangeHandler(database, previewMultiCompanyShareholderDetailsChange, 200),
+    detailsChangeHandler(database, previewMultiCompanyShareholderDetailsChange, 200, false),
   );
   api.post(
     "/companies/:companyId/shareholders/:shareholderId/details-changes",
-    detailsChangeHandler(database, appendMultiCompanyShareholderDetailsChange, 201),
+    detailsChangeHandler(database, appendMultiCompanyShareholderDetailsChange, 201, true),
   );
   api.post("/companies/:companyId/shareholders", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     const companyId = companyIdFrom(context.req.param());
     const input = createShareholderInputSchema.parse(
       withCompanyId(await context.req.json(), companyId),
@@ -443,6 +450,7 @@ function createApplicationApi(
     return context.json(listShareClasses(database, companyId));
   });
   api.post("/companies/:companyId/share-classes", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     const companyId = companyIdFrom(context.req.param());
     const input = createShareClassInputSchema.parse(
       withCompanyId(await context.req.json(), companyId),
@@ -463,6 +471,7 @@ function createApplicationApi(
     );
   });
   api.post("/companies/:companyId/events", async (context) => {
+    requireApplicationWrite(database, context.get("authUser").id);
     const companyId = companyIdFrom(context.req.param());
     const drafts = shareEventDraftBatchSchema.parse(await context.req.json());
     return context.json(
