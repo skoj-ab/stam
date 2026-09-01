@@ -69,6 +69,26 @@ function expectInvitationCode(operation: () => unknown, code: string): void {
   }
 }
 
+function acceptInvitationWithPassword(
+  auth: ReturnType<typeof createAuth>,
+  input: {
+    token: string;
+    newPassword: string;
+    origin?: string | null;
+    baseOrigin?: string;
+  },
+): Promise<Response> {
+  const headers = new Headers({ "content-type": "application/json" });
+  if (input.origin !== null) headers.set("origin", input.origin ?? publicOrigin);
+  return auth.handler(
+    new Request(`${input.baseOrigin ?? publicOrigin}/api/auth/invitation/accept-password`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ token: input.token, newPassword: input.newPassword }),
+    }),
+  );
+}
+
 describe("authentication database migration", () => {
   test("contains and applies all Better Auth, API-key, passkey, invitation, and app tables", async () => {
     const sql = await Bun.file(resolve(import.meta.dir, "../../drizzle/0000_initial.sql")).text();
@@ -383,35 +403,42 @@ describe("invitation password acceptance", () => {
         createdBy: admin.id,
       });
 
-      const response = await auth.handler(
-        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
-          method: "POST",
-          headers: { "content-type": "application/json", origin: publicOrigin },
-          body: JSON.stringify({
-            token: invitation.token,
-            newPassword: "invited-correct-horse-battery-staple",
-          }),
-        }),
-      );
+      const invitedPassword = "invited-correct-horse-battery-staple";
+      const response = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: invitedPassword,
+      });
 
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("no-store");
+      const responseBody = await response.clone().text();
       const cookie = response.headers.getSetCookie()[0]?.split(";", 1)[0];
       expect(cookie).toBeDefined();
-      expect(
-        database.db
-          .select()
-          .from(account)
-          .where(and(eq(account.userId, invitee.id), eq(account.providerId, "credential")))
-          .all(),
-      ).toHaveLength(1);
-      expect(
-        database.db.select().from(session).where(eq(session.userId, invitee.id)).all(),
-      ).toHaveLength(1);
+      const credentials = database.db
+        .select()
+        .from(account)
+        .where(and(eq(account.userId, invitee.id), eq(account.providerId, "credential")))
+        .all();
+      const sessions = database.db
+        .select()
+        .from(session)
+        .where(eq(session.userId, invitee.id))
+        .all();
+      expect(credentials).toHaveLength(1);
+      expect(sessions).toHaveLength(1);
       expectInvitationCode(
         () => resolveInvitation(database, invitation.token),
         INVITATION_ERROR_CODES.consumed,
       );
+      for (const secret of [
+        invitation.token,
+        invitedPassword,
+        credentials[0]?.password,
+        sessions[0]?.token,
+      ]) {
+        expect(responseBody).not.toContain(secret ?? "missing-secret");
+        expect(JSON.stringify(listAuditEvents(database))).not.toContain(secret ?? "missing-secret");
+      }
 
       const sessionResponse = await auth.handler(
         new Request(`${publicOrigin}/api/auth/get-session`, {
@@ -427,7 +454,7 @@ describe("invitation password acceptance", () => {
           headers: { "content-type": "application/json", origin: publicOrigin },
           body: JSON.stringify({
             email: invitee.email,
-            password: "invited-correct-horse-battery-staple",
+            password: invitedPassword,
           }),
         }),
       );
@@ -445,13 +472,10 @@ describe("invitation password acceptance", () => {
         createdBy: admin.id,
       });
 
-      const response = await auth.handler(
-        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
-          method: "POST",
-          headers: { "content-type": "application/json", origin: publicOrigin },
-          body: JSON.stringify({ token: invitation.token, newPassword: "replacement-password" }),
-        }),
-      );
+      const response = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "replacement-password",
+      });
 
       expect(response.status).toBe(409);
       expect(await response.json()).toMatchObject({ code: "CREDENTIAL_ACCOUNT_EXISTS" });
@@ -474,16 +498,167 @@ describe("invitation password acceptance", () => {
         createdBy: admin.id,
       });
 
-      const response = await auth.handler(
-        new Request(`${publicOrigin}/api/auth/invitation/accept-password`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token: invitation.token, newPassword: "valid-password" }),
+      const missingOrigin = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "valid-password",
+        origin: null,
+      });
+      const hostileOrigin = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "valid-password",
+        origin: "https://attacker.example.com",
+      });
+
+      expect(missingOrigin.status).toBe(403);
+      expect(hostileOrigin.status).toBe(403);
+      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
+    });
+  });
+
+  test("validates password bounds without consuming the invitation", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "password-bounds@example.com", name: "Password Bounds" },
+        })
+      ).user;
+      const invitation = createInvitation(database, {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
+        createdBy: admin.id,
+      });
+
+      const tooShort = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "short",
+      });
+      const tooLong = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "x".repeat(129),
+      });
+
+      expect(tooShort.status).toBe(400);
+      expect(await tooShort.json()).toMatchObject({ code: "PASSWORD_TOO_SHORT" });
+      expect(tooLong.status).toBe(400);
+      expect(await tooLong.json()).toMatchObject({ code: "PASSWORD_TOO_LONG" });
+      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
+      expect(
+        database.db.select().from(account).where(eq(account.userId, invitee.id)).all(),
+      ).toEqual([]);
+    });
+  });
+
+  test("allows only one concurrent acceptance", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "concurrent@example.com", name: "Concurrent User" },
+        })
+      ).user;
+      const invitation = createInvitation(database, {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
+        createdBy: admin.id,
+      });
+
+      const responses = await Promise.all([
+        acceptInvitationWithPassword(auth, {
+          token: invitation.token,
+          newPassword: "concurrent-password",
+        }),
+        acceptInvitationWithPassword(auth, {
+          token: invitation.token,
+          newPassword: "concurrent-password",
+        }),
+      ]);
+
+      expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
+      expect(
+        database.db.select().from(account).where(eq(account.userId, invitee.id)).all(),
+      ).toHaveLength(1);
+      expect(
+        database.db.select().from(session).where(eq(session.userId, invitee.id)).all(),
+      ).toHaveLength(1);
+    });
+  });
+
+  test("rolls back consumption and credentials when session persistence fails", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "rollback@example.com", name: "Rollback User" },
+        })
+      ).user;
+      const invitation = createInvitation(database, {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
+        createdBy: admin.id,
+      });
+      database.sqlite.run(`
+        CREATE TRIGGER fail_invitation_session
+        BEFORE INSERT ON session
+        BEGIN
+          SELECT RAISE(ABORT, 'forced session failure');
+        END
+      `);
+
+      const response = await acceptInvitationWithPassword(auth, {
+        token: invitation.token,
+        newPassword: "rollback-password",
+      });
+
+      expect(response.status).toBe(500);
+      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
+      expect(
+        database.db.select().from(account).where(eq(account.userId, invitee.id)).all(),
+      ).toEqual([]);
+      expect(
+        database.db.select().from(session).where(eq(session.userId, invitee.id)).all(),
+      ).toEqual([]);
+      expect(
+        listAuditEvents(database).filter(
+          ({ type, targetId }) =>
+            type === "INVITATION_CONSUMED" && targetId === invitation.invitation.id,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  test("rate limits password acceptance in production", async () => {
+    await withAuthDatabase(async (database, _auth, path) => {
+      const productionOrigin = "https://rate-limit.example.com";
+      const productionAuth = createAuth(
+        database,
+        readEnvironment({
+          NODE_ENV: "production",
+          PORT: "3100",
+          DATABASE_PATH: path,
+          PUBLIC_ORIGIN: productionOrigin,
+          AUTH_SECRET: "test-auth-secret-with-at-least-32-characters",
+          WEBAUTHN_RP_ID: "rate-limit.example.com",
         }),
       );
 
-      expect(response.status).toBe(403);
-      expect(resolveInvitation(database, invitation.token).id).toBe(invitation.invitation.id);
+      const responses = [];
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        responses.push(
+          await acceptInvitationWithPassword(productionAuth, {
+            token: `invalid-token-${attempt}`,
+            newPassword: "rate-limited-password",
+            origin: productionOrigin,
+            baseOrigin: productionOrigin,
+          }),
+        );
+      }
+
+      expect(responses.slice(0, 5).map(({ status }) => status)).toEqual([400, 400, 400, 400, 400]);
+      expect(responses[5]?.status).toBe(429);
     });
   });
 });

@@ -878,7 +878,7 @@ describe("HTTP application composition", () => {
     });
   });
 
-  test("lets only global administrators create opaque passwordless invitations", async () => {
+  test("lets only global administrators create opaque invitations", async () => {
     await withTestApp(async (app, database, auth) => {
       const users = await createAuthenticatedUsers(app, database, auth);
 
@@ -967,6 +967,41 @@ describe("HTTP application composition", () => {
       expect(await mismatchedRecovery.json()).toMatchObject({
         code: "INVITATION_IDENTITY_MISMATCH",
       });
+    });
+  });
+
+  test("accepts invitation passwords through the mounted authentication routes", async () => {
+    await withTestApp(async (app, database, auth) => {
+      const users = await createAuthenticatedUsers(app, database, auth);
+      const created = await createInvitationThroughApi(
+        users.admin,
+        "password-acceptance@example.com",
+      );
+      const invitedPassword = "mounted-invitation-password";
+
+      const response = await request(app, "/api/auth/invitation/accept-password", {
+        method: "POST",
+        body: { token: created.token, newPassword: invitedPassword },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.getSetCookie()).not.toEqual([]);
+      const audit = listAuditEvents(database);
+      expect(audit).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "INVITATION_CONSUMED",
+            targetId: created.id,
+          }),
+          expect.objectContaining({
+            type: "AUTH_LOGIN",
+            payload: { method: "PASSWORD_INVITATION" },
+          }),
+        ]),
+      );
+      const serializedAudit = JSON.stringify(audit);
+      expect(serializedAudit).not.toContain(created.token);
+      expect(serializedAudit).not.toContain(invitedPassword);
     });
   });
 

@@ -180,7 +180,8 @@ The generated options and verification must run in one browser cookie context.
 
 Requires a global administrator and returns all users plus invitation history.
 Invitation status is derived at the response's `asOf` timestamp as `PENDING`,
-`CONSUMED`, or `EXPIRED`; consumed takes precedence after an invitation's expiry.
+`CONSUMED`, `REVOKED`, or `EXPIRED`. Consumed and revoked states take precedence
+after an invitation's expiry.
 Roles are the target user's current roles, not a historical invitation value.
 The response is `private, no-store` and never includes invitation tokens or
 hashes.
@@ -210,6 +211,7 @@ hashes.
       "createdAt": "2026-08-29T11:45:00.000Z",
       "expiresAt": "2026-08-29T12:00:00.000Z",
       "consumedAt": null,
+      "revokedAt": null,
       "createdBy": "...",
       "createdByName": "Administrator"
     }
@@ -240,8 +242,9 @@ Requires a global administrator.
 ```
 
 `expiresAt` is optional, must be a future UTC timestamp without a numeric offset,
-and defaults to 15 minutes after creation. Email is trimmed and lowercased. The
-response is `201`:
+cannot be more than 24 hours after creation, and defaults to 15 minutes after
+creation. The administration UI offers 15 minutes, 1 hour, 8 hours, and 24
+hours. Email is trimmed and lowercased. The response is `201`:
 
 ```json
 {
@@ -253,7 +256,8 @@ response is `201`:
     "expiresAt": "2026-08-28T12:15:00.000Z",
     "createdAt": "2026-08-28T12:00:00.000Z",
     "createdBy": "...",
-    "consumedAt": null
+    "consumedAt": null,
+    "revokedAt": null
   },
   "token": "opaque-base64url-token",
   "acceptanceUrl": "https://stam.example.com/accept-invitation?token=..."
@@ -261,18 +265,23 @@ response is `201`:
 ```
 
 Only the token hash is stored. Deliver the response token through a protected
-channel. Re-inviting the same email/name reuses the pending user and creates a
-new token. A different name for an existing email returns `409` with code
-`INVITATION_IDENTITY_MISMATCH`. The acceptance URL opens the application route
-that registers a named passkey and establishes the invited user's session.
+channel. Re-inviting the same email/name reuses the user, revokes every earlier
+pending invitation for that user, and creates a new token. Revoked links return
+`REVOKED_INVITATION`. A different name for an existing email returns `409` with
+code `INVITATION_IDENTITY_MISMATCH`. The acceptance URL opens the application
+route where the invited user chooses a recommended passkey or a password
+fallback; either successful path establishes a session.
+
+### Passkey acceptance
 
 Invitation enrollment uses these exact HTTP steps:
 
 1. `GET /api/auth/passkey/generate-register-options?context=<token>` with the
    browser `Origin`. It validates the unconsumed token and returns standard
    `PublicKeyCredentialCreationOptionsJSON`; the returned `user.name` is the
-   email and `user.displayName` is the invitation name. It also sets a signed
-   challenge cookie.
+   email and `user.displayName` is the invitation name. Registration requires a
+   discoverable credential because normal passkey login does not identify the
+   user first. The response also sets a signed challenge cookie.
 2. Call `navigator.credentials.create()` through the Better Auth passkey client.
 3. `POST /api/auth/passkey/verify-registration` with the same cookie and origin:
 
@@ -286,13 +295,49 @@ Invitation enrollment uses these exact HTTP steps:
 
 `name` and `createSession` are optional. Set `createSession: true` for acceptance
 to establish a login session. Successful WebAuthn verification stores the
-passkey and atomically consumes the invitation. Reuse, expiry, invalid context,
+passkey and consumes the invitation. Reuse, revocation, expiry, invalid context,
 or identity mismatch returns `400` with one of `CONSUMED_INVITATION`,
-`EXPIRED_INVITATION`, `INVALID_INVITATION`, or `INVITATION_USER_MISMATCH`.
+`REVOKED_INVITATION`, `EXPIRED_INVITATION`, `INVALID_INVITATION`, or
+`INVITATION_USER_MISMATCH`.
 
 Use `authClient.passkey.addPasskey({ context: token, createSession: true })` from
 the configured Better Auth client instead of manually translating WebAuthn
 binary fields in UI code.
+
+### Password fallback
+
+`POST /api/auth/invitation/accept-password` is public but requires an `Origin`
+matching `PUBLIC_ORIGIN`. It accepts:
+
+```json
+{
+  "token": "opaque-base64url-token",
+  "newPassword": "at-least-eight-characters"
+}
+```
+
+Passwords must contain 8 to 128 characters. Success hashes the password through
+Better Auth, consumes the invitation, creates the credential and session in one
+SQLite transaction, sets a session cookie, and returns a `no-store` response:
+
+```json
+{
+  "user": {
+    "id": "...",
+    "email": "invitee@example.com",
+    "name": "Invited User"
+  },
+  "session": {
+    "id": "...",
+    "expiresAt": "2026-09-04T12:00:00.000Z"
+  }
+}
+```
+
+The endpoint never returns the password hash or session token. It is limited to
+five attempts per minute in development and production. If the user already has
+a credential account, it returns `409 CREDENTIAL_ACCOUNT_EXISTS` without
+consuming the invitation; an invitation never resets an existing password.
 
 ## Companies
 
