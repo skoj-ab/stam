@@ -14,24 +14,42 @@ trap cleanup EXIT INT TERM
 docker volume create "$volume" >/dev/null
 docker run --detach --name "$container" \
   --env NODE_ENV=production \
-  --env AUTH_SECRET=smoke-test-auth-secret-with-at-least-32-characters \
   --env PUBLIC_ORIGIN=https://stam.example.com \
   --env WEBAUTHN_RP_ID=stam.example.com \
   --mount "type=volume,source=$volume,target=/data" \
   "$image" >/dev/null
 
-attempt=0
-until docker exec "$container" bun -e '
-  const response = await fetch("http://127.0.0.1:3100/api/health");
-  process.exit(response.ok ? 0 : 1);
-' >/dev/null 2>&1; do
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge 30 ]; then
-    docker logs "$container"
-    exit 1
-  fi
-  sleep 1
-done
+wait_for_health() {
+  attempt=0
+  until docker exec "$container" bun -e '
+    const response = await fetch("http://127.0.0.1:3100/api/health");
+    process.exit(response.ok ? 0 : 1);
+  ' >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      docker logs "$container"
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+secret_digest() {
+  docker exec "$container" bun -e '
+    import { createHash } from "node:crypto";
+    import { readFileSync, statSync } from "node:fs";
+    const path = "/data/.auth-secret";
+    const secret = readFileSync(path, "utf8");
+    if (secret.length !== 64 || (statSync(path).mode & 0o777) !== 0o600) process.exit(1);
+    process.stdout.write(createHash("sha256").update(secret).digest("hex"));
+  '
+}
+
+wait_for_health
+initial_secret_digest="$(secret_digest)"
+docker restart "$container" >/dev/null
+wait_for_health
+test "$(secret_digest)" = "$initial_secret_digest"
 
 docker exec "$container" bun -e '
   const base = "http://127.0.0.1:3100";

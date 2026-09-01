@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 
 const environmentSchema = z.object({
@@ -11,10 +13,30 @@ const environmentSchema = z.object({
 });
 
 const documentedAuthSecretPlaceholder = "replace-with-at-least-32-random-characters";
+const generatedAuthSecretFilename = ".auth-secret";
 const rpIdPattern =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 export type Environment = z.infer<typeof environmentSchema>;
+
+function readOrCreateGeneratedAuthSecret(databasePath: string): string {
+  const secretPath = join(dirname(databasePath), generatedAuthSecretFilename);
+  mkdirSync(dirname(secretPath), { recursive: true, mode: 0o700 });
+  try {
+    writeFileSync(secretPath, randomBytes(48).toString("base64"), {
+      flag: "wx",
+      mode: 0o600,
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  return readFileSync(secretPath, "utf8");
+}
+
+function readConfiguredAuthSecret(path: string | undefined): string {
+  if (!path) throw new Error("AUTH_SECRET_FILE must not be empty");
+  return readFileSync(path, "utf8").replace(/\r?\n$/, "");
+}
 
 function resolveAuthSecret(source: Record<string, string | undefined>) {
   const valueConfigured = source.AUTH_SECRET !== undefined;
@@ -22,13 +44,17 @@ function resolveAuthSecret(source: Record<string, string | undefined>) {
   if (valueConfigured && fileConfigured) {
     throw new Error("Configure only one of AUTH_SECRET and AUTH_SECRET_FILE");
   }
-  if (!fileConfigured) return source;
+  if (!fileConfigured) {
+    if (valueConfigured || source.NODE_ENV !== "production") return source;
+    return {
+      ...source,
+      AUTH_SECRET: readOrCreateGeneratedAuthSecret(source.DATABASE_PATH ?? "./data/stam.sqlite"),
+    };
+  }
 
-  const path = source.AUTH_SECRET_FILE;
-  if (!path) throw new Error("AUTH_SECRET_FILE must not be empty");
   return {
     ...source,
-    AUTH_SECRET: readFileSync(path, "utf8").replace(/\r?\n$/, ""),
+    AUTH_SECRET: readConfiguredAuthSecret(source.AUTH_SECRET_FILE),
   };
 }
 

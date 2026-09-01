@@ -6,7 +6,6 @@ services:
       NODE_ENV: production
       PORT: 3100
       DATABASE_PATH: /data/stam.sqlite
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:?WEBAUTHN_RP_ID is required}
     ports:

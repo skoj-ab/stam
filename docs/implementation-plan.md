@@ -387,6 +387,7 @@ PRAGMA busy_timeout = 5000;
 Operational conventions:
 
 - The database defaults to `/data/stam.sqlite`.
+- Production generates and persists its authentication secret under `/data`.
 - Production supports one application replica.
 - `/data` must be a durable local Docker volume, not a network filesystem.
 - Committed migrations run before the HTTP listener starts.
@@ -398,9 +399,9 @@ The default deployment remains one application service:
 
 ```bash
 docker run \
-  -v ./data:/data \
-  -e AUTH_SECRET=... \
+  -v stam-data:/data \
   -e PUBLIC_ORIGIN=https://stam.example.se \
+  -e WEBAUTHN_RP_ID=stam.example.se \
   ghcr.io/skoj-ab/stam
 ```
 

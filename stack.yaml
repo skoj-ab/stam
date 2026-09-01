@@ -7,11 +7,8 @@ services:
       NODE_ENV: production
       PORT: 3100
       DATABASE_PATH: /data/stam.sqlite
-      AUTH_SECRET_FILE: /run/secrets/stam_auth_secret
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:?WEBAUTHN_RP_ID is required}
-    secrets:
-      - stam_auth_secret
     volumes:
       - stam-data:/data
     networks:
@@ -43,10 +40,6 @@ services:
 
 networks:
   stam-proxy:
-    external: true
-
-secrets:
-  stam_auth_secret:
     external: true
 
 volumes:

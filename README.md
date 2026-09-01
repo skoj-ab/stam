@@ -69,7 +69,6 @@ notice files.
 ## Docker Compose
 
 ```bash
-export AUTH_SECRET="$(openssl rand -base64 48)"
 export PUBLIC_ORIGIN=https://stam.example.com
 export WEBAUTHN_RP_ID=stam.example.com
 export STAM_VERSION=edge # Prefer an exact release version in production.
@@ -89,10 +88,11 @@ To build the image from the current checkout instead:
 docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-Compose runs one non-root application service, uses the `stam-data` named volume,
-binds HTTP only to host loopback, checks `/api/health`, and allows 30 seconds
-for graceful shutdown. Production must terminate TLS at a reverse proxy and
-forward the public origin unchanged.
+Compose runs one non-root application service, generates its authentication
+secret in the `stam-data` named volume on first start, binds HTTP only to host
+loopback, checks `/api/health`, and allows 30 seconds for graceful shutdown.
+Production must terminate TLS at a reverse proxy and forward the public origin
+unchanged.
 
 For automatic HTTPS after DNS points to the host and inbound ports 80 and 443
 are open, add the Caddy configuration:
@@ -103,8 +103,7 @@ docker compose -f compose.yaml -f compose.caddy.yaml up -d
 
 Docker Swarm stacks for an existing reverse proxy and for bundled Caddy are
 provided as `stack.yaml` and `stack.caddy.yaml`. Both enforce one Stam replica
-on a labeled data node and use a Docker secret for `AUTH_SECRET`; see
-[Operations](docs/operations.md#docker-swarm).
+on a labeled data node; see [Operations](docs/operations.md#docker-swarm).
 
 ## Documentation
 

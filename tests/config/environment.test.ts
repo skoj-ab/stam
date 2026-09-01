@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readEnvironment } from "../../src/config/environment.ts";
@@ -13,6 +13,26 @@ afterEach(() => {
 });
 
 describe("environment configuration", () => {
+  test("generates and reuses a private production authentication secret", () => {
+    const directory = mkdtempSync(join(tmpdir(), "stam-environment-"));
+    directories.push(directory);
+    const source = {
+      NODE_ENV: "production",
+      DATABASE_PATH: join(directory, "stam.sqlite"),
+      PUBLIC_ORIGIN: "https://stam.example.com",
+      WEBAUTHN_RP_ID: "stam.example.com",
+    };
+
+    const first = readEnvironment(source);
+    const second = readEnvironment(source);
+    const secretPath = join(directory, ".auth-secret");
+
+    expect(first.AUTH_SECRET).toHaveLength(64);
+    expect(second.AUTH_SECRET).toBe(first.AUTH_SECRET);
+    expect(readFileSync(secretPath, "utf8")).toBe(first.AUTH_SECRET);
+    expect(statSync(secretPath).mode & 0o777).toBe(0o600);
+  });
+
   test("reads AUTH_SECRET from a Docker-compatible secret file", () => {
     const directory = mkdtempSync(join(tmpdir(), "stam-environment-"));
     directories.push(directory);

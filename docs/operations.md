@@ -57,26 +57,30 @@ operator able to remove triggers.
 | `NODE_ENV` | `development` | `production` |
 | `PORT` | `3100` | Optional, `3100` in the image |
 | `DATABASE_PATH` | `./data/stam.sqlite` | `/data/stam.sqlite` in Compose |
-| `AUTH_SECRET` | Development-only value | Required, at least 32 characters |
-| `AUTH_SECRET_FILE` | Unset | Alternative file containing `AUTH_SECRET` |
+| `AUTH_SECRET` | Development-only value | Optional explicit value, at least 32 characters |
+| `AUTH_SECRET_FILE` | Unset | Optional file containing `AUTH_SECRET` |
 | `PUBLIC_ORIGIN` | `http://localhost:5174` | Required absolute HTTPS origin, without a path |
 | `WEBAUTHN_RP_ID` | `localhost` | Required WebAuthn relying-party domain |
 
-Generate `AUTH_SECRET` with a cryptographically secure generator, for example
-`openssl rand -base64 48`. Do not commit it or pass it as a command argument.
-Compose reads these three required public/runtime values from the shell or a
-local `.env` file:
+When neither `AUTH_SECRET` nor `AUTH_SECRET_FILE` is configured in production,
+Stam generates 48 random bytes on first start and stores the base64 value in
+`.auth-secret` beside `DATABASE_PATH`. The file is created with mode `0600` and
+reused across restarts. The container therefore stores it at
+`/data/.auth-secret` in the same durable volume as SQLite.
+
+To manage the secret externally instead, generate it with a cryptographically
+secure generator such as `openssl rand -base64 48`. Do not commit it or pass it
+as a command argument. Configure only one of `AUTH_SECRET` and
+`AUTH_SECRET_FILE`; the file form reads one secret and removes one trailing line
+ending, making it compatible with Docker secrets mounted under `/run/secrets`.
+
+Compose reads the required public settings from the shell or a local `.env`
+file:
 
 ```bash
-AUTH_SECRET=replace-with-a-secret-of-at-least-32-characters
 PUBLIC_ORIGIN=https://stam.example.com
 WEBAUTHN_RP_ID=stam.example.com
 ```
-
-Configure only one of `AUTH_SECRET` and `AUTH_SECRET_FILE`. The file form reads
-the secret at startup and removes one trailing line ending, which makes it
-compatible with Docker Swarm secrets mounted under `/run/secrets`. It does not
-put the secret in the service environment.
 
 `PUBLIC_ORIGIN` is the browser-visible origin and is used for cookie, trusted
 origin, CSRF, invitation URL, and WebAuthn checks. Production rejects HTTP.
@@ -188,7 +192,6 @@ resolved timezone and prints both the IANA timezone name and UTC offset. The
 container defaults to UTC unless its runtime timezone is configured differently.
 
 ```bash
-export AUTH_SECRET="$(openssl rand -base64 48)"
 export PUBLIC_ORIGIN=https://stam.example.com
 export WEBAUTHN_RP_ID=stam.example.com
 export STAM_VERSION=0.1.0
@@ -205,10 +208,11 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
 The deployment is intentionally one service, one process, one replica, and one
-named volume. `/data` must be a durable local Docker volume on the same host as
-the process. Do not use NFS, SMB, object-storage mounts, distributed filesystems,
-multiple containers sharing the file, or `docker compose up --scale stam=2`.
-SQLite locking and WAL do not provide a multi-replica deployment model.
+named volume. `/data` contains both SQLite and the generated authentication
+secret and must be a durable local Docker volume on the same host as the process.
+Do not use NFS, SMB, object-storage mounts, distributed filesystems, multiple
+containers sharing the file, or `docker compose up --scale stam=2`. SQLite
+locking and WAL do not provide a multi-replica deployment model.
 
 ### Automatic HTTPS with Caddy
 
@@ -238,13 +242,6 @@ Run `docker volume create` on `DATA_NODE` itself. The placement constraint keeps
 the service attached to that node-local volume; Swarm rescheduling is not
 database failover. Restore a verified backup before moving Stam to another
 node.
-
-Create the runtime secret from a manager without putting it in a service
-environment:
-
-```bash
-openssl rand -base64 48 | docker secret create stam_auth_secret -
-```
 
 For an existing Swarm reverse proxy, create or reuse an attachable overlay
 network named `stam-proxy`, connect the proxy to it, export the public settings,
@@ -307,7 +304,11 @@ The backup command opens a separate read-only SQLite connection and uses
 It writes a mode-`0600` temporary file beside the destination, runs
 `PRAGMA integrity_check` against that file, and atomically renames it. It refuses
 an existing destination and refuses the source path as the destination. It does
-not read or print `AUTH_SECRET`.
+not read or print `AUTH_SECRET`. The database backup does not include the
+generated `.auth-secret`; copy that file separately with mode `0600` if a
+restore must preserve existing secret-derived authentication state. Otherwise,
+Stam generates a new secret and existing sessions may need to authenticate
+again.
 
 Local backup while the server remains live:
 
