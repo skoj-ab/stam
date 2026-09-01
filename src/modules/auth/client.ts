@@ -2,6 +2,7 @@ import { apiKeyClient } from "@better-auth/api-key/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { createAuthClient } from "better-auth/client";
 import { adminClient } from "better-auth/client/plugins";
+import { authRoles } from "./access-control.ts";
 import { invitationPasswordClient } from "./invitation-password-client.ts";
 
 export function getAuthClientBaseURL(): string | undefined {
@@ -10,5 +11,10 @@ export function getAuthClientBaseURL(): string | undefined {
 
 export const authClient = createAuthClient({
   baseURL: getAuthClientBaseURL(),
-  plugins: [passkeyClient(), adminClient(), apiKeyClient(), invitationPasswordClient()],
+  plugins: [
+    passkeyClient(),
+    adminClient({ roles: authRoles }),
+    apiKeyClient(),
+    invitationPasswordClient(),
+  ],
 });

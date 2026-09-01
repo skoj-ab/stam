@@ -6,6 +6,7 @@ import { admin } from "better-auth/plugins";
 import type { Environment } from "../../config/environment.ts";
 import type { DatabaseContext } from "../../db/database.ts";
 import * as schema from "../../db/schema.ts";
+import { authRoles } from "./access-control.ts";
 import { invitationPassword } from "./invitation-password.ts";
 import { consumeInvitation, resolveInvitation } from "./invitations.ts";
 
@@ -39,7 +40,11 @@ export function createAuth(database: DatabaseContext, environment: Environment) 
     },
     plugins: [
       invitationPassword(database),
-      admin(),
+      admin({
+        roles: authRoles,
+        defaultRole: "user",
+        adminRoles: ["admin"],
+      }),
       apiKey({
         enableSessionForAPIKeys: true,
         defaultPrefix: "stam_",
