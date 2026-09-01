@@ -138,14 +138,12 @@ function getExpiry(expiresAt: Date | undefined, createdAt: Date): Date {
 
 function requireMatchingUser(
   database: DatabaseContext,
-  userId: string,
-  email: string,
-  name: string,
+  identity: Pick<CreateInvitationInput, "userId" | "email" | "name">,
 ): void {
-  const target = database.db.select().from(user).where(eq(user.id, userId)).get();
+  const target = database.db.select().from(user).where(eq(user.id, identity.userId)).get();
   if (!target) throwInvitationIdentityMismatch();
-  if (target.email !== email) throwInvitationIdentityMismatch();
-  if (target.name !== name) throwInvitationIdentityMismatch();
+  if (target.email !== identity.email) throwInvitationIdentityMismatch();
+  if (target.name !== identity.name) throwInvitationIdentityMismatch();
 }
 
 function throwInvitationIdentityMismatch(): never {
@@ -162,7 +160,7 @@ export function createInvitation(
   const values = createInvitationInputSchema.parse(input);
   const createdAt = new Date();
   const expiresAt = getExpiry(values.expiresAt, createdAt);
-  requireMatchingUser(database, values.userId, values.email, values.name);
+  requireMatchingUser(database, values);
   requireGlobalAdmin(database, values.createdBy);
 
   const token = randomBytes(32).toString("base64url");

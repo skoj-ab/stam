@@ -12,6 +12,7 @@ import { listAuditEvents, recordRuntimeConfiguration } from "../../src/modules/a
 import {
   bootstrapFirstAdmin,
   consumeInvitation,
+  createAdminInvitation,
   createAuth,
   createInvitation,
   DEFAULT_INVITATION_TTL_MS,
@@ -278,21 +279,29 @@ describe("opaque invitations", () => {
         () => resolveInvitation(database, "not-an-invitation"),
         INVITATION_ERROR_CODES.invalid,
       );
+    });
+  });
 
-      const firstRecovery = createInvitation(database, {
-        userId: wrongUser.id,
-        email: wrongUser.email,
-        name: wrongUser.name,
+  test("supersedes an earlier pending invitation for the same user", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+      const invitee = (
+        await auth.api.createUser({
+          body: { email: "replacement@example.com", name: "Replacement User" },
+        })
+      ).user;
+      const input = {
+        userId: invitee.id,
+        email: invitee.email,
+        name: invitee.name,
         createdBy: admin.id,
-      });
-      const replacement = createInvitation(database, {
-        userId: wrongUser.id,
-        email: wrongUser.email,
-        name: wrongUser.name,
-        createdBy: admin.id,
-      });
+      };
+
+      const first = createInvitation(database, input);
+      const replacement = createInvitation(database, input);
+
       expectInvitationCode(
-        () => resolveInvitation(database, firstRecovery.token),
+        () => resolveInvitation(database, first.token),
         INVITATION_ERROR_CODES.revoked,
       );
       expect(resolveInvitation(database, replacement.token).id).toBe(replacement.invitation.id);
@@ -373,6 +382,28 @@ describe("opaque invitations", () => {
           }),
         "INVALID_INVITATION_EXPIRY",
       );
+    });
+  });
+
+  test("validates administrator expiry before provisioning a user", async () => {
+    await withAuthDatabase(async (database, auth) => {
+      const admin = (await bootstrapFirstAdmin(auth, database, adminCredentials)).user;
+
+      await expect(
+        createAdminInvitation(
+          auth,
+          database,
+          {
+            email: "overlong@example.com",
+            name: "Overlong User",
+            expiresAt: new Date(Date.now() + MAX_INVITATION_TTL_MS + 60_000).toISOString(),
+          },
+          admin.id,
+        ),
+      ).rejects.toMatchObject({ body: { code: "INVALID_INVITATION_EXPIRY" } });
+      expect(
+        database.db.select().from(user).where(eq(user.email, "overlong@example.com")).get(),
+      ).toBe(undefined);
     });
   });
 

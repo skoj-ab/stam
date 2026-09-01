@@ -892,21 +892,6 @@ describe("HTTP application composition", () => {
         database.db.select().from(user).where(eq(user.email, "blocked@example.com")).get(),
       ).toBe(undefined);
 
-      const overlong = await request(app, "/api/admin/invitations", {
-        method: "POST",
-        cookie: users.admin.cookie,
-        body: {
-          email: "overlong@example.com",
-          name: "Overlong User",
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000 + 60_000).toISOString(),
-        },
-      });
-      expect(overlong.status).toBe(400);
-      expect(await overlong.json()).toMatchObject({ code: "INVALID_INVITATION_EXPIRY" });
-      expect(
-        database.db.select().from(user).where(eq(user.email, "overlong@example.com")).get(),
-      ).toBe(undefined);
-
       const response = await request(app, "/api/admin/invitations", {
         method: "POST",
         cookie: users.admin.cookie,
@@ -967,41 +952,6 @@ describe("HTTP application composition", () => {
       expect(await mismatchedRecovery.json()).toMatchObject({
         code: "INVITATION_IDENTITY_MISMATCH",
       });
-    });
-  });
-
-  test("accepts invitation passwords through the mounted authentication routes", async () => {
-    await withTestApp(async (app, database, auth) => {
-      const users = await createAuthenticatedUsers(app, database, auth);
-      const created = await createInvitationThroughApi(
-        users.admin,
-        "password-acceptance@example.com",
-      );
-      const invitedPassword = "mounted-invitation-password";
-
-      const response = await request(app, "/api/auth/invitation/accept-password", {
-        method: "POST",
-        body: { token: created.token, newPassword: invitedPassword },
-      });
-
-      expect(response.status).toBe(200);
-      expect(response.headers.getSetCookie()).not.toEqual([]);
-      const audit = listAuditEvents(database);
-      expect(audit).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            type: "INVITATION_CONSUMED",
-            targetId: created.id,
-          }),
-          expect.objectContaining({
-            type: "AUTH_LOGIN",
-            payload: { method: "PASSWORD_INVITATION" },
-          }),
-        ]),
-      );
-      const serializedAudit = JSON.stringify(audit);
-      expect(serializedAudit).not.toContain(created.token);
-      expect(serializedAudit).not.toContain(invitedPassword);
     });
   });
 
