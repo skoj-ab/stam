@@ -18,7 +18,7 @@ RUN apt-get update \
     && install -D -m 0644 /tmp/typst/LICENSE /usr/share/licenses/typst/LICENSE \
     && install -D -m 0644 /tmp/typst/NOTICE /usr/share/licenses/typst/NOTICE
 
-FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS dependencies
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS dependencies
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
@@ -27,7 +27,7 @@ FROM dependencies AS build
 COPY . .
 RUN bun run build
 
-FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS runtime
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS runtime
 WORKDIR /app
 LABEL org.opencontainers.image.title="Stam" \
       org.opencontainers.image.description="A self-hosted share register for Swedish private limited companies" \
